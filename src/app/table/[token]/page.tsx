@@ -1175,16 +1175,28 @@ export default function CustomerTableOrderingPage({
                   <span className="text-[10px] font-normal text-stone-400">Need more? Tap repeat</span>
                 </div>
                 {activeOrder.order_items.map((it) => (
-                  <div key={it.id} className="flex justify-between items-center py-1 text-xs border-b border-stone-200/60 last:border-0">
-                    <div className="flex items-center gap-1.5">
+                  <div key={it.id} className="flex justify-between items-center py-1.5 text-xs border-b border-stone-200/60 last:border-0">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <span className={it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} />
-                      <span className="font-semibold text-stone-800">{it.qty}× {it.menu_items?.name || "Dish"}</span>
-                      <span className="text-[10px] uppercase font-bold text-stone-400">({it.item_status})</span>
+                      <span className="font-bold text-stone-800 truncate">{it.qty}× {it.menu_items?.name || "Dish"}</span>
+                      {it.item_status === "served" ? (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                          <span>✓</span> Ready
+                        </span>
+                      ) : it.item_status === "preparing" ? (
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse flex items-center gap-1 shrink-0">
+                          <span>🔥</span> Cooking
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
+                          <span>⏳</span> Queued
+                        </span>
+                      )}
                     </div>
                     <button
                       type="button"
                       onClick={() => handleReorderItem(it)}
-                      className="px-2 py-0.5 rounded text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-xs transition-transform active:scale-95"
+                      className="px-2 py-0.5 rounded text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-xs transition-transform active:scale-95 ml-2 shrink-0"
                       style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
                     >
                       + Repeat
@@ -1627,6 +1639,31 @@ export default function CustomerTableOrderingPage({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Floating Call Staff Buzzer Button (Always accessible anywhere on the menu) */}
+      {features.callWaiter && !isReviewOpen && !isCallModalOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(15);
+            setIsCallModalOpen(true);
+          }}
+          className={`fixed z-40 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-2xl active:scale-95 transition-all cursor-pointer border ${
+            totalCartCount > 0 ? "bottom-20 right-4" : "bottom-5 right-4"
+          }`}
+          style={{
+            backgroundColor: "#1F2937",
+            color: "#F9FAFB",
+            borderColor: "rgba(255,255,255,0.2)",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+          }}
+        >
+          <span className="text-base animate-bounce">🛎️</span>
+          <span className="text-xs font-bold tracking-wide">
+            {waiterCooldown > 0 ? `Wait ${waiterCooldown}s` : "Call Waiter"}
+          </span>
+        </button>
       )}
 
       {/* CART REVIEW & BILL SPLIT DRAWER */}

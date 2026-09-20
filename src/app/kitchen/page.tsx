@@ -404,7 +404,7 @@ export default function KitchenDisplayPage() {
                 }}
               >
                 <div>
-                  {/* Ticket Header: Large Table Number for Distance Visibility */}
+                  {/* Ticket Header: Large Table Number & Item Ready Counter */}
                   <div
                     className="p-3.5 border-b border-dashed flex items-baseline justify-between"
                     style={{
@@ -413,10 +413,30 @@ export default function KitchenDisplayPage() {
                     }}
                   >
                     <div>
-                      <span className="text-[11px] font-semibold text-stone-600 block">
-                        Order slip
-                      </span>
-                      <strong className="font-heading text-3xl font-bold tracking-tight" style={{ color: "var(--ink)" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-stone-600">
+                          Order slip
+                        </span>
+                        {(() => {
+                          const readyCount = order.order_items.filter((it) => it.item_status === "served").length;
+                          const totalCount = order.order_items.length;
+                          const isFullyReady = readyCount === totalCount && totalCount > 0;
+                          return (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isFullyReady
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse"
+                                  : readyCount > 0
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-stone-200 text-stone-700"
+                              }`}
+                            >
+                              {isFullyReady ? "✓ All Ready" : `${readyCount}/${totalCount} Ready`}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      <strong className="font-heading text-3xl font-bold tracking-tight block mt-0.5" style={{ color: "var(--ink)" }}>
                         Table {order.restaurant_tables?.table_number || "T--"}
                       </strong>
                     </div>
@@ -476,8 +496,8 @@ export default function KitchenDisplayPage() {
                     </div>
                   </div>
 
-                  {/* Ticket Items: Monospace receipt typography */}
-                  <div className="p-4 space-y-2 font-receipt text-xs">
+                  {/* Ticket Items: Individual Dish-by-Dish Action Bumping */}
+                  <div className="p-3.5 space-y-2 font-receipt text-xs">
                     {order.order_items.map((item) => {
                       const isItemServed = item.item_status === "served";
                       const isItemCooking = item.item_status === "preparing";
@@ -485,53 +505,68 @@ export default function KitchenDisplayPage() {
                       return (
                         <div
                           key={item.id}
-                          onClick={() => bumpItem(item.id, item.item_status)}
-                          className="p-2 rounded flex items-center justify-between cursor-pointer transition-colors border"
+                          className="p-2.5 rounded-lg flex items-center justify-between gap-2 transition-all border"
                           style={{
                             backgroundColor: isItemServed
-                              ? "var(--paper-dim)"
+                              ? "#F4F7F4"
                               : isItemCooking
-                              ? "#EBF0F5"
+                              ? "#EFF6FF"
                               : "var(--paper)",
                             borderColor: isItemServed
-                              ? "var(--hairline)"
+                              ? "#A3CFBB"
                               : isItemCooking
-                              ? "var(--ink-blue)"
+                              ? "#93C5FD"
                               : "var(--hairline)",
-                            opacity: isItemServed ? 0.45 : 1,
+                            opacity: isItemServed ? 0.65 : 1,
                           }}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
                             <span className={item.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} />
-                            <div>
-                              <div className="font-bold text-sm" style={{ color: "var(--ink)" }}>
+                            <div className="min-w-0">
+                              <div className="font-bold text-sm truncate" style={{ color: "var(--ink)" }}>
                                 {item.qty}× {item.menu_items?.name || "Dish"}
                               </div>
                               {item.notes && (
-                                <div className="text-[11px] font-sans font-semibold mt-0.5" style={{ color: "var(--brick)" }}>
+                                <div className="text-[11px] font-sans font-semibold mt-0.5 text-red-700">
                                   Note: {item.notes}
                                 </div>
                               )}
                             </div>
                           </div>
 
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] uppercase font-bold"
-                            style={{
-                              backgroundColor: isItemServed
-                                ? "#D8E3D7"
-                                : isItemCooking
-                                ? "#D4E2EC"
-                                : "var(--paper-dim)",
-                              color: isItemServed
-                                ? "var(--sage)"
-                                : isItemCooking
-                                ? "var(--ink-blue)"
-                                : "var(--ink-soft)",
-                            }}
-                          >
-                            {item.item_status}
-                          </span>
+                          {/* Individual Dish Touch Button for Chef */}
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            {item.item_status === "pending" && (
+                              <button
+                                type="button"
+                                onClick={() => bumpItem(item.id, "pending")}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-transform cursor-pointer shadow-xs flex items-center gap-1"
+                                title="Start cooking this dish"
+                              >
+                                <span>🍳</span>
+                                <span>Cook</span>
+                              </button>
+                            )}
+
+                            {item.item_status === "preparing" && (
+                              <button
+                                type="button"
+                                onClick={() => bumpItem(item.id, "preparing")}
+                                className="px-2.5 py-1 rounded text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-transform cursor-pointer shadow-sm flex items-center gap-1 animate-pulse"
+                                title="Click when dish is ready for waiter pickup"
+                              >
+                                <span>🍽️</span>
+                                <span>Mark Ready</span>
+                              </button>
+                            )}
+
+                            {item.item_status === "served" && (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 flex items-center gap-1">
+                                <span>✓</span>
+                                <span>Ready</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -550,25 +585,27 @@ export default function KitchenDisplayPage() {
                     <button
                       type="button"
                       onClick={() => bumpOrder(order.id, "preparing")}
-                      className="flex-1 h-11 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95"
+                      className="flex-1 h-11 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-1.5"
                       style={{
                         backgroundColor: "var(--ink-blue)",
                         borderRadius: "4px",
                       }}
                     >
-                      Start cooking
+                      <span>🍳</span>
+                      <span>Start all cooking</span>
                     </button>
                   )}
                   <button
                     type="button"
                     onClick={() => bumpOrder(order.id, "served")}
-                    className="flex-1 h-11 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95"
+                    className="flex-1 h-11 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95 flex items-center justify-center gap-1.5"
                     style={{
                       backgroundColor: "var(--sage)",
                       borderRadius: "4px",
                     }}
                   >
-                    Mark ready
+                    <span>✓</span>
+                    <span>Serve entire ticket</span>
                   </button>
                 </div>
               </div>

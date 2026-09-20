@@ -220,10 +220,28 @@ export default function Home() {
     }
   };
 
-  // New Order Form state
+  // New Order Form & Quick POS state
   const [orderTable, setOrderTable] = useState("T01");
   const [orderGuests, setOrderGuests] = useState(2);
   const [orderSelectedItems, setOrderSelectedItems] = useState<string[]>([]);
+  const [quickMenuItems, setQuickMenuItems] = useState<{ id: string; category_id?: string; name: string; price: number; is_veg: boolean }[]>([]);
+  const [quickCategories, setQuickCategories] = useState<{ id: string; name: string }[]>([]);
+  const [quickCategory, setQuickCategory] = useState<string>("all");
+  const [quickSearch, setQuickSearch] = useState<string>("");
+  const [quickCart, setQuickCart] = useState<{ [id: string]: { qty: number; notes: string; item: { id: string; category_id?: string; name: string; price: number; is_veg: boolean } } }>({});
+  const [isQuickSubmitting, setIsQuickSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isNewOrderOpen && quickMenuItems.length === 0) {
+      fetch("/api/menu")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.items) setQuickMenuItems(data.items);
+          if (data?.categories) setQuickCategories(data.categories);
+        })
+        .catch(() => undefined);
+    }
+  }, [isNewOrderOpen, quickMenuItems.length]);
 
   // Table Join / Merge and Transfer state
   const [isMergeOpen, setIsMergeOpen] = useState(false);
@@ -546,14 +564,22 @@ export default function Home() {
     }
   }
 
-  // Quick Dispatch Order
+  // Quick Dispatch Order from POS
   async function handleCreateOrderSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!orderTable || orderSelectedItems.length === 0) {
-      notify("Select a table and at least 1 menu item");
+    const cartEntries = Object.values(quickCart).filter((c) => c.qty > 0);
+    
+    // Support either cart entries or fallback to selected items
+    const itemsToSubmit = cartEntries.length > 0
+      ? cartEntries.map((c) => ({ itemId: c.item.id, qty: c.qty, notes: c.notes || undefined }))
+      : orderSelectedItems.map((id) => ({ itemId: id, qty: 1 }));
+
+    if (!orderTable || itemsToSubmit.length === 0) {
+      notify("Select a table and add at least 1 dish to order");
       return;
     }
 
+    setIsQuickSubmitting(true);
     try {
       const res = await fetch("/api/orders/quick", {
         method: "POST",
@@ -561,16 +587,20 @@ export default function Home() {
         body: JSON.stringify({
           tableNumber: orderTable,
           guestCount: orderGuests,
-          items: orderSelectedItems.map((itemId) => ({ itemId, qty: 1 })),
+          items: itemsToSubmit,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to dispatch order");
-      notify(`Order dispatched to kitchen for Table ${orderTable}`);
+      notify(`KOT dispatched to kitchen for Table ${orderTable} (${itemsToSubmit.length} items)`);
       setIsNewOrderOpen(false);
+      setQuickCart({});
+      setOrderSelectedItems([]);
       await fetchDashboardData();
     } catch (err) {
       notify(err instanceof Error ? err.message : "Order creation failed");
+    } finally {
+      setIsQuickSubmitting(false);
     }
   }
 
@@ -1610,105 +1640,246 @@ export default function Home() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateOrderSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-soft)" }}>
-                  Select station table
-                </label>
-                <select
-                  value={orderTable}
-                  onChange={(e) => setOrderTable(e.target.value)}
-                  className="w-full px-3 py-2 rounded font-semibold focus:outline-none"
-                  style={{
-                    backgroundColor: "var(--paper-dim)",
-                    border: "1px solid var(--hairline)",
-                    color: "var(--ink)",
-                  }}
-                >
-                  {floorTables.map((t) => (
-                    <option key={t.number} value={t.number}>
-                      {t.number} ({t.statusLabel})
-                    </option>
-                  ))}
-                </select>
+            <form onSubmit={handleCreateOrderSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold mb-1" style={{ color: "var(--ink-soft)" }}>
+                    Station Table
+                  </label>
+                  <select
+                    value={orderTable}
+                    onChange={(e) => setOrderTable(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded font-bold focus:outline-none"
+                    style={{
+                      backgroundColor: "var(--paper-dim)",
+                      border: "1px solid var(--hairline)",
+                      color: "var(--ink)",
+                    }}
+                  >
+                    {floorTables.map((t) => (
+                      <option key={t.number} value={t.number}>
+                        Table {t.number} ({t.statusLabel})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold mb-1" style={{ color: "var(--ink-soft)" }}>
+                    Guest Count
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={orderGuests}
+                    onChange={(e) => setOrderGuests(Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded font-bold focus:outline-none"
+                    style={{
+                      backgroundColor: "var(--paper-dim)",
+                      border: "1px solid var(--hairline)",
+                      color: "var(--ink)",
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Dish Search & Category Filters */}
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-soft)" }}>
-                  Guest seating count
-                </label>
                 <input
-                  type="number"
-                  min="1"
-                  max="16"
-                  value={orderGuests}
-                  onChange={(e) => setOrderGuests(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded font-semibold focus:outline-none"
-                  style={{
-                    backgroundColor: "var(--paper-dim)",
-                    border: "1px solid var(--hairline)",
-                    color: "var(--ink)",
-                  }}
+                  type="text"
+                  placeholder="🔍 Search dish by name (e.g. Biryani, Paneer, Naan)..."
+                  value={quickSearch}
+                  onChange={(e) => setQuickSearch(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border text-xs focus:outline-none bg-white mb-2"
+                  style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
                 />
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--ink-soft)" }}>
-                  Select initial dishes
-                </label>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {bestsellers.map((dish) => (
-                    <label
-                      key={dish.id}
-                      className="flex items-center justify-between p-2 rounded cursor-pointer"
-                      style={{
-                        backgroundColor: "var(--paper-dim)",
-                        border: "1px solid var(--hairline)",
-                      }}
+                {/* Categories */}
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setQuickCategory("all")}
+                    className={`px-2.5 py-1 rounded-full font-bold cursor-pointer transition-colors ${
+                      quickCategory === "all" ? "bg-stone-800 text-white" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                    }`}
+                  >
+                    All
+                  </button>
+                  {quickCategories.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setQuickCategory(c.id)}
+                      className={`px-2.5 py-1 rounded-full font-bold cursor-pointer whitespace-nowrap transition-colors ${
+                        quickCategory === c.id ? "bg-stone-800 text-white" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                      }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={dish.is_veg ? "veg-indicator" : "nonveg-indicator"} />
-                        <span className="font-semibold" style={{ color: "var(--ink)" }}>{dish.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-receipt font-semibold" style={{ color: "var(--ink)" }}>
-                          ₹{dish.price}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={orderSelectedItems.includes(dish.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setOrderSelectedItems([...orderSelectedItems, dish.id]);
-                            } else {
-                              setOrderSelectedItems(orderSelectedItems.filter((id) => id !== dish.id));
-                            }
-                          }}
-                          className="accent-[#C1652C] cursor-pointer"
-                        />
-                      </div>
-                    </label>
+                      {c.name}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-dashed" style={{ borderColor: "var(--hairline)" }}>
-                <button
-                  type="button"
-                  onClick={() => setIsNewOrderOpen(false)}
-                  className="px-3.5 py-2 rounded text-xs font-medium cursor-pointer"
-                  style={{ color: "var(--ink-soft)" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded text-xs font-bold cursor-pointer"
-                  style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)", borderRadius: "4px" }}
-                >
-                  Dispatch to kitchen
-                </button>
+              {/* Menu Dishes List */}
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {(() => {
+                  const availableDishes = quickMenuItems.length > 0
+                    ? quickMenuItems
+                    : bestsellers.map((b) => ({ ...b, category_id: undefined }));
+
+                  const filtered = availableDishes.filter((d) => {
+                    const matchesCategory = quickCategory === "all" || d.category_id === quickCategory;
+                    const matchesSearch = !quickSearch || d.name.toLowerCase().includes(quickSearch.toLowerCase());
+                    return matchesCategory && matchesSearch;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-4 text-center text-stone-400 text-xs">
+                        No dishes match &quot;{quickSearch}&quot;
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((dish) => {
+                    const currentCart = quickCart[dish.id];
+                    const qty = currentCart?.qty || 0;
+
+                    return (
+                      <div
+                        key={dish.id}
+                        className="p-2.5 rounded-lg border bg-white flex flex-col gap-1.5 shadow-xs transition-colors"
+                        style={{ borderColor: qty > 0 ? "var(--rust)" : "var(--hairline)" }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={dish.is_veg ? "veg-indicator" : "nonveg-indicator"} />
+                            <span className="font-bold text-xs" style={{ color: "var(--ink)" }}>{dish.name}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="font-receipt font-bold text-xs" style={{ color: "var(--ink)" }}>
+                              ₹{dish.price}
+                            </span>
+
+                            {qty === 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuickCart((prev) => ({
+                                    ...prev,
+                                    [dish.id]: { qty: 1, notes: "", item: dish },
+                                  }));
+                                }}
+                                className="px-2.5 py-1 rounded text-xs font-bold text-white cursor-pointer active:scale-95"
+                                style={{ backgroundColor: "var(--rust)", borderRadius: "4px" }}
+                              >
+                                + Add
+                              </button>
+                            ) : (
+                              <div className="flex items-center border rounded overflow-hidden" style={{ borderColor: "var(--rust)" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickCart((prev) => {
+                                      const next = { ...prev };
+                                      if (next[dish.id].qty <= 1) {
+                                        delete next[dish.id];
+                                      } else {
+                                        next[dish.id].qty -= 1;
+                                      }
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-6 h-6 flex items-center justify-center font-bold text-xs bg-stone-100 hover:bg-stone-200 cursor-pointer"
+                                >
+                                  -
+                                </button>
+                                <span className="font-receipt font-bold px-2 text-xs">{qty}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickCart((prev) => ({
+                                      ...prev,
+                                      [dish.id]: { ...prev[dish.id], qty: prev[dish.id].qty + 1 },
+                                    }));
+                                  }}
+                                  className="w-6 h-6 flex items-center justify-center font-bold text-xs bg-stone-100 hover:bg-stone-200 cursor-pointer"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {qty > 0 && (
+                          <input
+                            type="text"
+                            placeholder="Optional note (less spice, crispy)..."
+                            value={currentCart?.notes || ""}
+                            onChange={(e) => {
+                              const noteVal = e.target.value;
+                              setQuickCart((prev) => ({
+                                ...prev,
+                                [dish.id]: { ...prev[dish.id], notes: noteVal },
+                              }));
+                            }}
+                            className="w-full px-2 py-1 text-[11px] rounded border bg-stone-50/70 focus:outline-none"
+                            style={{ borderColor: "var(--hairline)" }}
+                          />
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
+
+              {/* Cart Summary & Dispatch Button */}
+              {(() => {
+                const cartList = Object.values(quickCart).filter((c) => c.qty > 0);
+                const totalQty = cartList.reduce((sum, c) => sum + c.qty, 0);
+                const totalAmount = cartList.reduce((sum, c) => sum + c.qty * c.item.price, 0);
+
+                return (
+                  <div className="pt-3 border-t border-dashed space-y-2.5" style={{ borderColor: "var(--hairline)" }}>
+                    <div className="flex justify-between items-baseline text-xs font-bold px-1">
+                      <span className="text-stone-600">
+                        {totalQty > 0 ? `${totalQty} item(s) selected` : "No items added"}
+                      </span>
+                      <span className="font-receipt text-sm" style={{ color: "var(--rust)" }}>
+                        Total: ₹{totalAmount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsNewOrderOpen(false)}
+                        className="px-3.5 py-2 rounded text-xs font-medium cursor-pointer text-stone-600 hover:bg-stone-100"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={totalQty === 0 || isQuickSubmitting}
+                        className="px-4 py-2 rounded text-xs font-bold cursor-pointer transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)", borderRadius: "4px" }}
+                      >
+                        {isQuickSubmitting ? (
+                          <span>Sending KOT...</span>
+                        ) : (
+                          <>
+                            <span>🚀</span>
+                            <span>Send KOT to Kitchen</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </form>
           </div>
         </div>
