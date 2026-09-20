@@ -1,0 +1,800 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+type StaffPermissions = {
+  canEditOrders: boolean;
+  canDeleteOrders: boolean;
+};
+
+type StaffMember = {
+  id: string;
+  name: string;
+  role: "waiter" | "captain" | "kitchen" | "cashier" | "manager" | "owner" | "admin" | "staff";
+  is_active: boolean;
+  created_at: string;
+  permissions?: StaffPermissions;
+};
+
+const roleBadges: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  owner: { label: "Owner", color: "text-amber-300", bg: "bg-amber-950/40", border: "border-amber-800/60" },
+  admin: { label: "Administrator", color: "text-purple-300", bg: "bg-purple-950/40", border: "border-purple-800/60" },
+  manager: { label: "Manager", color: "text-indigo-300", bg: "bg-indigo-950/40", border: "border-indigo-800/60" },
+  captain: { label: "Captain", color: "text-blue-300", bg: "bg-blue-950/40", border: "border-blue-800/60" },
+  cashier: { label: "Cashier", color: "text-emerald-300", bg: "bg-emerald-950/40", border: "border-emerald-800/60" },
+  waiter: { label: "Waiter / Staff", color: "text-sky-300", bg: "bg-sky-950/40", border: "border-sky-800/60" },
+  staff: { label: "Waiter / Staff", color: "text-sky-300", bg: "bg-sky-950/40", border: "border-sky-800/60" },
+  kitchen: { label: "Kitchen KDS", color: "text-orange-300", bg: "bg-orange-950/40", border: "border-orange-800/60" },
+};
+
+export default function StaffPage() {
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [restaurantName, setRestaurantName] = useState<string>("Order Desk");
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal States
+  const [isAddingStaff, setIsAddingStaff] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [resettingPinMember, setResettingPinMember] = useState<StaffMember | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // New Staff Form
+  const [newStaff, setNewStaff] = useState({
+    name: "",
+    role: "waiter" as StaffMember["role"],
+    pin: "",
+    canEditOrders: false,
+    canDeleteOrders: false,
+  });
+
+  // Edit Permissions Form
+  const [editForm, setEditForm] = useState({
+    role: "waiter" as StaffMember["role"],
+    canEditOrders: false,
+    canDeleteOrders: false,
+  });
+
+  // Reset PIN Form
+  const [newPin, setNewPin] = useState("");
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  useEffect(() => {
+    loadStaff();
+  }, []);
+
+  async function loadStaff() {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/staff");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to load staff");
+      setStaff(data.staff || []);
+      if (data.restaurantName) setRestaurantName(data.restaurantName);
+    } catch (error: unknown) {
+      setErrorMessage(error instanceof Error ? error.message : "Error loading staff");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Handle Role Change in Add Form to update default permissions
+  function handleAddRoleChange(role: StaffMember["role"]) {
+    const isOwnerOrMgr = role === "owner" || role === "admin" || role === "manager";
+    const isCap = role === "captain";
+    setNewStaff((prev) => ({
+      ...prev,
+      role,
+      canEditOrders: isOwnerOrMgr || isCap,
+      canDeleteOrders: isOwnerOrMgr,
+    }));
+  }
+
+  async function handleAddStaff(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newStaff.name.trim() || !newStaff.pin) return;
+    if (!/^\d{4}$/.test(newStaff.pin)) {
+      alert("PIN must be exactly 4 digits (e.g. 1234)");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newStaff),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to add staff member");
+
+      setIsAddingStaff(false);
+      setNewStaff({
+        name: "",
+        role: "waiter",
+        pin: "",
+        canEditOrders: false,
+        canDeleteOrders: false,
+      });
+      showToast(`Staff member "${data.staff?.name || "Member"}" created successfully!`);
+      await loadStaff();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to add staff");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSavePermissions(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingStaff) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/staff", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffId: editingStaff.id,
+          role: editForm.role,
+          canEditOrders: editForm.canEditOrders,
+          canDeleteOrders: editForm.canDeleteOrders,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update permissions");
+
+      setEditingStaff(null);
+      showToast(`Permissions updated for ${editingStaff.name}!`);
+      await loadStaff();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Update failed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleResetPinSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resettingPinMember || !newPin) return;
+    if (!/^\d{4}$/.test(newPin)) {
+      alert("PIN must be exactly 4 digits (e.g. 1234)");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/staff", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          staffId: resettingPinMember.id,
+          newPin,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to reset PIN");
+
+      setResettingPinMember(null);
+      setNewPin("");
+      showToast(`PIN reset successfully for ${resettingPinMember.name}!`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "PIN reset failed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function toggleStatus(member: StaffMember) {
+    if (member.role === "owner") {
+      alert("Owner account status cannot be toggled.");
+      return;
+    }
+    const nextState = !member.is_active;
+    try {
+      const res = await fetch("/api/staff", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staffId: member.id, isActive: nextState }),
+      });
+      if (!res.ok) throw new Error("Failed to update status");
+      setStaff((prev) =>
+        prev.map((s) => (s.id === member.id ? { ...s, is_active: nextState } : s))
+      );
+      showToast(`${member.name} marked as ${nextState ? "Active" : "Inactive"}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error updating status");
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col md:flex-row antialiased">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border border-orange-500 text-white px-5 py-3.5 rounded-xl shadow-2xl animate-fade-in text-xs font-semibold">
+          <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Sidebar */}
+      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between flex-shrink-0">
+        <div>
+          <div className="flex items-center gap-3 mb-8 px-2 pt-2">
+            <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-950/40 font-extrabold text-sm">
+              OD
+            </div>
+            <div>
+              <h1 className="font-bold text-base tracking-tight text-white leading-tight">Order Desk</h1>
+              <p className="text-xs text-slate-400 font-medium truncate max-w-[140px]">{restaurantName}</p>
+            </div>
+          </div>
+
+          <nav className="space-y-1 text-xs font-medium">
+            <Link
+              href="/"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
+            >
+              <span>◈</span>
+              <span>Overview POS</span>
+            </Link>
+
+            <Link
+              href="/kitchen"
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <span>♨</span>
+                <span>Kitchen Rail (KDS)</span>
+              </div>
+              <span className="bg-orange-500/20 text-orange-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                Live
+              </span>
+            </Link>
+
+            <Link
+              href="/tables"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
+            >
+              <span>▦</span>
+              <span>Floor Tables</span>
+            </Link>
+
+            <Link
+              href="/menu"
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
+            >
+              <span>✦</span>
+              <span>Menu & Stock</span>
+            </Link>
+
+            <Link
+              href="/staff"
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-orange-600/15 border border-orange-500/30 text-orange-400 font-semibold shadow-inner"
+            >
+              <div className="flex items-center gap-3">
+                <span>♧</span>
+                <span>Staff & Roles</span>
+              </div>
+              <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
+                {staff.length}
+              </span>
+            </Link>
+          </nav>
+        </div>
+
+        <div className="pt-4 border-t border-slate-800">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white px-3 py-2 rounded-lg hover:bg-slate-800/60 transition-colors"
+          >
+            <span>←</span>
+            <span>Back to Dashboard</span>
+          </Link>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 bg-slate-950 p-6 md:p-8 space-y-6 overflow-y-auto">
+        {/* Header */}
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-orange-400 font-bold">
+              <span>TEAM &amp; TERMINAL ACCESS</span>
+              <span>•</span>
+              <span>ROLE-BASED PERMISSIONS</span>
+            </div>
+            <h2 className="text-2xl font-bold text-white tracking-tight mt-1">
+              Staff &amp; Permissions Deck
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Assign roles, configure granular order edit/void rights, and issue 4-digit POS PINs for shared terminals.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsAddingStaff(true)}
+            className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-orange-950/50 border border-orange-400/30 transition-all cursor-pointer"
+          >
+            <span>+</span>
+            <span>Add New Staff</span>
+          </button>
+        </header>
+
+        {/* Staff Table Section */}
+        <section className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900">
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-sm text-white uppercase tracking-wider">Active Team Roster</span>
+              <span className="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono">
+                {staff.length} Members
+              </span>
+            </div>
+            <span className="hidden sm:inline text-[11px] text-slate-400 font-mono">
+              Fast 4-digit PIN authentication active
+            </span>
+          </div>
+
+          {isLoading && (
+            <div className="p-12 text-center text-slate-400 text-xs font-mono">
+              Loading team members...
+            </div>
+          )}
+
+          {!isLoading && errorMessage && (
+            <div className="p-8 text-center text-red-400 text-xs bg-red-950/20 border-b border-red-900/30 font-mono">
+              {errorMessage}
+            </div>
+          )}
+
+          {!isLoading && !errorMessage && staff.length === 0 && (
+            <div className="p-12 text-center text-slate-400 text-xs">
+              No staff members registered. Click "+ Add New Staff" to create your team.
+            </div>
+          )}
+
+          {!isLoading && !errorMessage && staff.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950/60 text-slate-400 font-mono uppercase tracking-wider border-b border-slate-800">
+                  <tr>
+                    <th className="px-6 py-3.5">Staff Name</th>
+                    <th className="px-6 py-3.5">Role</th>
+                    <th className="px-6 py-3.5">Order Permissions</th>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5">Joined</th>
+                    <th className="px-6 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {staff.map((member) => {
+                    const badge = roleBadges[member.role] || roleBadges.waiter;
+                    const canEdit = member.role === "owner" || member.role === "admin" || member.role === "manager" || Boolean(member.permissions?.canEditOrders);
+                    const canDelete = member.role === "owner" || member.role === "admin" || member.role === "manager" || Boolean(member.permissions?.canDeleteOrders);
+
+                    return (
+                      <tr key={member.id} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-bold text-white text-sm">{member.name}</div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {member.id.slice(0, 8)}</div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-bold border ${badge.bg} ${badge.color} ${badge.border}`}
+                          >
+                            {badge.label}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1.5">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium border ${
+                                canEdit
+                                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-800/60"
+                                  : "bg-slate-800/50 text-slate-500 border-slate-700/50"
+                              }`}
+                              title={canEdit ? "Can add dishes and edit quantities" : "Cannot edit running orders"}
+                            >
+                              <span>{canEdit ? "✓" : "✕"}</span>
+                              <span>Edit Orders</span>
+                            </span>
+
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-medium border ${
+                                canDelete
+                                  ? "bg-amber-950/40 text-amber-300 border-amber-800/60"
+                                  : "bg-slate-800/50 text-slate-500 border-slate-700/50"
+                              }`}
+                              title={canDelete ? "Can void and cancel orders" : "Cannot delete/void running orders"}
+                            >
+                              <span>{canDelete ? "✓" : "✕"}</span>
+                              <span>Void Orders</span>
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => toggleStatus(member)}
+                            disabled={member.role === "owner"}
+                            className="flex items-center gap-1.5 focus:outline-none cursor-pointer disabled:cursor-not-allowed"
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                member.is_active ? "bg-emerald-400" : "bg-slate-600"
+                              }`}
+                            />
+                            <span
+                              className={`text-[11px] font-mono font-bold ${
+                                member.is_active ? "text-emerald-400" : "text-slate-500"
+                              }`}
+                            >
+                              {member.is_active ? "ACTIVE" : "INACTIVE"}
+                            </span>
+                          </button>
+                        </td>
+
+                        <td className="px-6 py-4 text-slate-400 font-mono text-[11px]">
+                          {new Date(member.created_at).toLocaleDateString("en-IN")}
+                        </td>
+
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Reset PIN */}
+                            <button
+                              onClick={() => {
+                                setResettingPinMember(member);
+                                setNewPin("");
+                              }}
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                              title="Reset 4-Digit POS PIN"
+                            >
+                              PIN
+                            </button>
+
+                            {/* Edit Permissions */}
+                            {member.role !== "owner" && (
+                              <button
+                                onClick={() => {
+                                  setEditingStaff(member);
+                                  setEditForm({
+                                    role: member.role,
+                                    canEditOrders: Boolean(member.permissions?.canEditOrders),
+                                    canDeleteOrders: Boolean(member.permissions?.canDeleteOrders),
+                                  });
+                                }}
+                                className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                            )}
+
+                            {/* Activate / Deactivate */}
+                            {member.role !== "owner" && (
+                              <button
+                                onClick={() => toggleStatus(member)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer border ${
+                                  member.is_active
+                                    ? "bg-red-950/20 text-red-400 border-red-900/40 hover:bg-red-900/30"
+                                    : "bg-emerald-950/20 text-emerald-400 border-emerald-900/40 hover:bg-emerald-900/30"
+                                }`}
+                              >
+                                {member.is_active ? "Deactivate" : "Activate"}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* MODAL 1: ADD NEW STAFF MEMBER */}
+        {isAddingStaff && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
+                    NEW RECRUIT
+                  </span>
+                  <h3 className="text-base font-bold text-white">Create Staff Member</h3>
+                </div>
+                <button
+                  onClick={() => setIsAddingStaff(false)}
+                  className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleAddStaff} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    Staff Full Name
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. Ramesh Kumar"
+                    value={newStaff.name}
+                    onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    Station Role
+                  </label>
+                  <select
+                    value={newStaff.role}
+                    onChange={(e) => handleAddRoleChange(e.target.value as StaffMember["role"])}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="waiter">Waiter / Floor Staff (Order Taking)</option>
+                    <option value="captain">Captain (Floor Lead &amp; Table Orders)</option>
+                    <option value="kitchen">Kitchen Staff (KDS Display Chits Only)</option>
+                    <option value="cashier">Cashier (Billing &amp; Settlement)</option>
+                    <option value="manager">Restaurant Manager (Full Floor Access)</option>
+                  </select>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Kitchen staff only have access to /kitchen. Waiters/captains are blocked from /staff.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    4-Digit POS PIN
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="e.g. 5678"
+                    value={newStaff.pin}
+                    onChange={(e) => setNewStaff({ ...newStaff, pin: e.target.value.replace(/\D/g, "") })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white tracking-[6px] focus:outline-none focus:border-orange-500"
+                  />
+                  <small className="text-[10px] text-slate-500 block mt-1">
+                    Used for fast PIN switching on counter tablet / station terminal.
+                  </small>
+                </div>
+
+                {/* Granular Order Permissions */}
+                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl space-y-2.5">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase block">
+                    Order Action Permissions
+                  </span>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newStaff.canEditOrders}
+                      onChange={(e) => setNewStaff({ ...newStaff, canEditOrders: e.target.checked })}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-700 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-white block">Allow Edit Orders</span>
+                      <span className="text-[11px] text-slate-400 block">
+                        Can add items or change item quantities on running customer orders.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newStaff.canDeleteOrders}
+                      onChange={(e) => setNewStaff({ ...newStaff, canDeleteOrders: e.target.checked })}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-700 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-white block">Allow Void / Delete Orders</span>
+                      <span className="text-[11px] text-slate-400 block">
+                        Can cancel running orders and clear active tables without manager override.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStaff(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Creating..." : "Save Staff Member"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: EDIT PERMISSIONS & ROLE */}
+        {editingStaff && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
+                    MODIFY ACCESS
+                  </span>
+                  <h3 className="text-base font-bold text-white">Permissions: {editingStaff.name}</h3>
+                </div>
+                <button
+                  onClick={() => setEditingStaff(null)}
+                  className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePermissions} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    Assign Role
+                  </label>
+                  <select
+                    value={editForm.role}
+                    onChange={(e) => {
+                      const r = e.target.value as StaffMember["role"];
+                      const isOwnerOrMgr = r === "manager" || r === "admin";
+                      const isCap = r === "captain";
+                      setEditForm({
+                        role: r,
+                        canEditOrders: isOwnerOrMgr || isCap || editForm.canEditOrders,
+                        canDeleteOrders: isOwnerOrMgr || editForm.canDeleteOrders,
+                      });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
+                  >
+                    <option value="waiter">Waiter / Floor Staff</option>
+                    <option value="captain">Captain (Floor Lead)</option>
+                    <option value="kitchen">Kitchen Staff (KDS Display Only)</option>
+                    <option value="cashier">Cashier</option>
+                    <option value="manager">Restaurant Manager</option>
+                  </select>
+                </div>
+
+                <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-xl space-y-3">
+                  <span className="text-[11px] font-bold text-slate-300 uppercase block">
+                    Granular Order Permissions
+                  </span>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.canEditOrders}
+                      onChange={(e) => setEditForm({ ...editForm, canEditOrders: e.target.checked })}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-700 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-white block">Can Edit Running Orders</span>
+                      <span className="text-[11px] text-slate-400 block">
+                        Allow adding dishes or editing quantities on active table orders.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.canDeleteOrders}
+                      onChange={(e) => setEditForm({ ...editForm, canDeleteOrders: e.target.checked })}
+                      className="mt-0.5 rounded bg-slate-900 border-slate-700 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-white block">Can Void / Delete Orders</span>
+                      <span className="text-[11px] text-slate-400 block">
+                        Allow cancelling active tickets and resetting table occupancy.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingStaff(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Updating..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: RESET PIN */}
+        {resettingPinMember && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
+                    SECURITY CREDENTIALS
+                  </span>
+                  <h3 className="text-base font-bold text-white">Reset PIN: {resettingPinMember.name}</h3>
+                </div>
+                <button
+                  onClick={() => setResettingPinMember(null)}
+                  className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleResetPinSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
+                    New 4-Digit POS PIN
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="e.g. 1234"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white tracking-[6px] focus:outline-none focus:border-orange-500"
+                  />
+                  <small className="text-[10px] text-slate-500 block mt-1">
+                    Enter the new 4-digit code the staff member will enter on POS terminals.
+                  </small>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setResettingPinMember(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting || newPin.length !== 4}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Resetting..." : "Update PIN"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

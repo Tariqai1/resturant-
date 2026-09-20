@@ -1,0 +1,187 @@
+{
+  "broadcast": {
+    "id": "bcast-default-1",
+    "title": "Order Desk System Online",
+    "message": "All POS terminals and multi-tenant nodes operating normally with realtime synchronization.",
+    "type": "info",
+    "active": true,
+    "dismissible": true,
+    "createdAt": "2026-09-13T04:53:00.908Z",
+    "updatedAt": "2026-09-14T18:46:54.542Z"
+  },
+  "activities": [
+    {
+      "action": "ARCHIVE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "targetName": "Tauheed Resto",
+      "details": "Archived restaurant \"Tauheed Resto\". Financial ledger and GST audit data preserved.",
+      "id": "act-mua1llds-wrr0",
+      "createdAt": "2026-09-20T16:40:29.056Z"
+    },
+    {
+      "action": "RESTORE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "targetName": "Tauheed Resto",
+      "details": "Restored restaurant \"Tauheed Resto\" back to active status.",
+      "id": "act-mua1kzc3-5ba3",
+      "createdAt": "2026-09-20T16:40:00.483Z"
+    },
+    {
+      "action": "ARCHIVE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "targetName": "Tauheed Resto",
+      "details": "Archived restaurant \"Tauheed Resto\". Financial ledger and GST audit data preserved.",
+      "id": "act-mua1kr3h-9w7p",
+      "createdAt": "2026-09-20T16:39:49.805Z"
+    },
+    {
+      "action": "DELETE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "d90c11e7-3275-44d5-b11d-5dcecd4456fb",
+      "targetName": "TauheedResto",
+      "details": "Permanently deleted demo/test restaurant \"TauheedResto\" (0 orders).",
+      "id": "act-mua1kmbp-xbio",
+      "createdAt": "2026-09-20T16:39:43.621Z"
+    },
+    {
+      "action": "BROADCAST_UPDATE",
+      "actorEmail": "tarique@gmai.com",
+      "details": "Updated Platform Broadcast Banner \"Order Desk System Online\" (info, ACTIVE)",
+      "id": "act-mu1lh2dv-fcir",
+      "createdAt": "2026-09-14T18:46:54.547Z"
+    },
+    {
+      "action": "BROADCAST_UPDATE",
+      "actorEmail": "tarique@gmai.com",
+      "details": "Updated Platform Broadcast Banner \"Order Desk System Online\" (info, ACTIVE)",
+      "id": "act-mu1lh1vf-dhkk",
+      "createdAt": "2026-09-14T18:46:53.883Z"
+    },
+    {
+      "action": "BROADCAST_UPDATE",
+      "actorEmail": "tarique@gmai.com",
+      "details": "Updated Platform Broadcast Banner \"Order Desk System Online\" (info, ACTIVE)",
+      "id": "act-mu1leny8-yxw1",
+      "createdAt": "2026-09-14T18:45:02.528Z"
+    },
+    {
+      "action": "IMPERSONATE",
+      "actorEmail": "tarique@gmai.com",
+      "targetId": "c816369c-fd3b-4034-bba2-7c766584de4e",
+      "targetName": "Test resto",
+      "details": "Started Ghost Mode Impersonation of \"Test resto\" (tarique@gmai.com)",
+      "id": "act-mu1k0va6-mcv7",
+      "createdAt": "2026-09-14T18:06:19.230Z"
+    },
+    {
+      "action": "BROADCAST_UPDATE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "details": "Updated Platform Broadcast Banner \"Order Desk System Online\" (info, DISABLED)",
+      "id": "act-mtze3z4x-2ydp",
+      "createdAt": "2026-09-13T05:45:14.145Z"
+    },
+    {
+      "action": "IMPERSONATE",
+      "actorEmail": "tarique@gmai.com",
+      "targetId": "c816369c-fd3b-4034-bba2-7c766584de4e",
+      "targetName": "Test resto",
+      "details": "Exited Ghost Mode Impersonation of \"Test resto\"",
+      "id": "act-mtzd67kp-twdm",
+      "createdAt": "2026-09-13T05:18:58.777Z"
+    },
+    {
+      "action": "BROADCAST_UPDATE",
+      "actorEmail": "tarique@gmai.com",
+      "details": "Updated Platform Broadcast Banner \"Order Desk System Online\" (info, DISABLED)",
+      "id": "act-mtzd5mht-n0ez",
+      "createdAt": "2026-09-13T05:18:31.458Z"
+    },
+    {
+      "action": "IMPERSONATE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "c816369c-fd3b-4034-bba2-7c766584de4e",
+      "targetName": "Test resto",
+      "details": "Started Ghost Mode Impersonation of \"Test resto\" (tarique@gmai.com)",
+      "id": "act-mtzcdrnj-74yt",
+      "createdAt": "2026-09-13T04:56:51.775Z"
+    },
+    {
+      "id": "act-init-1",
+      "action": "STATUS_CHANGE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetName": "System Fleet",
+      "details": "Platform Command Deck initialized with active tenant sync",
+      "createdAt": "2026-09-13T04:53:00.909Z"
+    }
+  ],
+  "archivedRestaurants": {
+    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": {
+      "id": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "name": "Tauheed Resto",
+      "archivedAt": "2026-09-20T16:40:29.050Z",
+      "archivedBy": "tariqfsd9@gmail.com"
+    }
+  },
+  "staffPermissions": {
+    "46ba2224-cc5f-4afa-859e-bd510ccca18c": {
+      "canEditOrders": false,
+      "canDeleteOrders": false,
+      "assignedPin": "4321"
+    },
+    "70fb66de-ad70-4640-809d-a3e15c4aa92e": {
+      "canEditOrders": false,
+      "canDeleteOrders": false,
+      "assignedPin": "2222"
+    }
+  },
+  "waiterCalls": [
+    {
+      "id": "call-mu22xh55h8s",
+      "tableId": "380de356-50d9-4847-b5ec-4094d28aaf90",
+      "tableNumber": "T01",
+      "restaurantId": "c816369c-fd3b-4034-bba2-7c766584de4e",
+      "type": "cutlery",
+      "status": "resolved",
+      "createdAt": "2026-09-15T02:55:33.641Z",
+      "acknowledgedAt": "2026-09-15T02:56:38.348Z"
+    },
+    {
+      "id": "call-mu1ozx71grm",
+      "tableId": "380de356-50d9-4847-b5ec-4094d28aaf90",
+      "tableNumber": "T01",
+      "restaurantId": "c816369c-fd3b-4034-bba2-7c766584de4e",
+      "type": "waiter",
+      "status": "resolved",
+      "createdAt": "2026-09-14T20:25:33.133Z",
+      "acknowledgedAt": "2026-09-15T02:53:21.730Z"
+    },
+    {
+      "id": "call-mtzl5eg4bg2",
+      "tableId": "2a9f70d1-fa9f-464a-955c-27ea7ab3ffbe",
+      "tableNumber": "T01",
+      "restaurantId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "type": "waiter",
+      "status": "resolved",
+      "createdAt": "2026-09-13T09:02:17.956Z",
+      "acknowledgedAt": "2026-09-13T10:42:17.757Z"
+    },
+    {
+      "id": "call-mtzkrznlyqa",
+      "tableId": "2a9f70d1-fa9f-464a-955c-27ea7ab3ffbe",
+      "tableNumber": "T01",
+      "restaurantId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "type": "water",
+      "status": "resolved",
+      "createdAt": "2026-09-13T08:51:52.257Z",
+      "acknowledgedAt": "2026-09-13T09:00:47.608Z"
+    }
+  ],
+  "restaurantThemes": {
+    "c816369c-fd3b-4034-bba2-7c766584de4e": "amber"
+  },
+  "restaurantFeatures": {},
+  "orderPrepEstimates": {}
+}
