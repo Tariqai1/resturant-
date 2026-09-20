@@ -67,6 +67,7 @@ export async function GET() {
 
   const staffWithPerms = (staffRes.data ?? []).map((s) => ({
     ...s,
+    role: s.role === "staff" ? "waiter" : s.role === "admin" ? "owner" : s.role,
     permissions: getStaffPermissions(s.id, s.role),
   }));
 
@@ -124,13 +125,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Staff member name is required" }, { status: 400 });
   }
 
-  const validRoles = ["waiter", "captain", "kitchen", "cashier", "manager", "admin", "staff"];
-  if (!validRoles.includes(role)) {
-    return NextResponse.json({ message: "Invalid role. Choose waiter, captain, kitchen, cashier, or manager" }, { status: 400 });
+  const validRoles = ["owner", "waiter", "kitchen", "staff", "admin", "manager", "captain", "cashier"];
+  if (!validRoles.includes(rawRole)) {
+    return NextResponse.json({ message: "Invalid role. Choose owner, waiter, or kitchen" }, { status: 400 });
   }
 
   if (!/^\d{4}$/.test(pin)) {
     return NextResponse.json({ message: "PIN must be exactly 4 digits (e.g. 1234)" }, { status: 400 });
+  }
+
+  // Canonical 3-role mapping:
+  // Postgres check constraint is (role in ('staff', 'kitchen', 'admin', 'owner'))
+  let dbRole: "owner" | "kitchen" | "staff" = "staff";
+  let displayRole: "owner" | "kitchen" | "waiter" = "waiter";
+
+  if (rawRole === "owner" || rawRole === "admin" || rawRole === "manager") {
+    dbRole = "owner";
+    displayRole = "owner";
+  } else if (rawRole === "kitchen") {
+    dbRole = "kitchen";
+    displayRole = "kitchen";
+  } else {
+    // "waiter", "staff", "captain", "cashier"
+    dbRole = "staff";
+    displayRole = "waiter";
   }
 
   const pinHash = await bcrypt.hash(pin, 10);
@@ -140,7 +158,7 @@ export async function POST(request: Request) {
     .insert({
       restaurant_id: targetRestaurantId,
       name,
-      role,
+      role: dbRole,
       pin_hash: pinHash,
       is_active: true,
     })
@@ -159,10 +177,10 @@ export async function POST(request: Request) {
       canDeleteOrders: body.canDeleteOrders !== undefined ? Boolean(body.canDeleteOrders) : undefined,
       assignedPin: pin,
     },
-    role
+    displayRole
   );
 
-  return NextResponse.json({ ok: true, staff: { ...newMember, permissions } }, { status: 201 });
+  return NextResponse.json({ ok: true, staff: { ...newMember, role: displayRole, permissions } }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -196,8 +214,15 @@ export async function PATCH(request: Request) {
 
   const updates: Record<string, unknown> = {};
   if (isActive !== undefined) updates.is_active = Boolean(isActive);
-  if (role && ["waiter", "captain", "kitchen", "cashier", "manager", "admin", "staff"].includes(role)) {
-    updates.role = role === "staff" ? "waiter" : role;
+  if (role) {
+    const rawR = String(role).trim().toLowerCase();
+    if (rawR === "owner" || rawR === "admin" || rawR === "manager") {
+      updates.role = "owner";
+    } else if (rawR === "kitchen") {
+      updates.role = "kitchen";
+    } else {
+      updates.role = "staff";
+    }
   }
   if (newPin) {
     if (!/^\d{4}$/.test(String(newPin).trim())) {
@@ -237,6 +262,7 @@ export async function PATCH(request: Request) {
   }
 
   const permissions = getStaffPermissions(updated.id, updated.role);
+  const displayRole = updated.role === "staff" ? "waiter" : updated.role === "admin" ? "owner" : updated.role;
 
-  return NextResponse.json({ ok: true, staff: { ...updated, permissions } });
+  return NextResponse.json({ ok: true, staff: { ...updated, role: displayRole, permissions } });
 }

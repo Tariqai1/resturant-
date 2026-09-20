@@ -130,6 +130,43 @@ function getCategoryIcon(catName: string): string {
   return "🍽️";
 }
 
+function getSpiciness(name: string, desc: string | null): "mild" | "medium" | "spicy" {
+  const text = `${name} ${desc || ""}`.toLowerCase();
+  if (
+    text.includes("extra spicy") ||
+    text.includes("schezwan") ||
+    text.includes("peri peri") ||
+    text.includes("kolhapuri") ||
+    text.includes("vindaloo") ||
+    text.includes("mirch") ||
+    text.includes("angara") ||
+    text.includes("chilli") ||
+    text.includes("hot garlic") ||
+    text.includes("spicy") ||
+    text.includes("tikka")
+  ) {
+    return "spicy";
+  }
+  if (
+    text.includes("korma") ||
+    text.includes("malai") ||
+    text.includes("butter") ||
+    text.includes("sweet") ||
+    text.includes("shahi") ||
+    text.includes("sweet corn") ||
+    text.includes("curd") ||
+    text.includes("custard") ||
+    text.includes("ice cream") ||
+    text.includes("shake") ||
+    text.includes("halwa") ||
+    text.includes("kheer") ||
+    text.includes("lassi")
+  ) {
+    return "mild";
+  }
+  return "medium";
+}
+
 export default function CustomerTableOrderingPage({
   params,
 }: {
@@ -196,6 +233,16 @@ export default function CustomerTableOrderingPage({
   const [isTicketExpanded, setIsTicketExpanded] = useState(false);
   const [previewDish, setPreviewDish] = useState<MenuItem | null>(null);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<boolean>(false);
+
+  // Micro-interaction & Feature States
+  const [flyingParticles, setFlyingParticles] = useState<
+    Array<{ id: number; x: number; y: number; tx: number; ty: number; emoji: string }>
+  >([]);
+  const [isCartBouncing, setIsCartBouncing] = useState<boolean>(false);
+  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState<boolean>(false);
+  const [activePaymentTab, setActivePaymentTab] = useState<"app" | "qr">("app");
+  const [upiCopied, setUpiCopied] = useState<boolean>(false);
+  const [quickAddNotice, setQuickAddNotice] = useState<string>("");
 
   // Live timer tick
   const [nowTime, setNowTime] = useState<number>(() => Date.now());
@@ -298,8 +345,45 @@ export default function CustomerTableOrderingPage({
     };
   }, [token, loadTableData]);
 
-  function addToCart(itemId: string) {
-    triggerHaptic(12);
+  function addToCart(itemId: string, e?: React.MouseEvent<HTMLElement> | React.TouchEvent<HTMLElement>) {
+    triggerHaptic(14);
+
+    // Trigger Fly-to-Cart Particle Animation
+    if (e && typeof window !== "undefined") {
+      try {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const startX = rect.left + rect.width / 2;
+        const startY = rect.top + rect.height / 2;
+        const targetX = window.innerWidth / 2;
+        const targetY = window.innerHeight - 35;
+        const item = items.find((i) => i.id === itemId);
+        const emoji = item ? getFoodEmoji(item.name, item.is_veg) : "✨";
+
+        const newP = {
+          id: Date.now() + Math.random(),
+          x: startX,
+          y: startY,
+          tx: targetX - startX,
+          ty: targetY - startY,
+          emoji,
+        };
+
+        setFlyingParticles((prev) => [...prev, newP]);
+
+        setTimeout(() => {
+          setFlyingParticles((prev) => prev.filter((p) => p.id !== newP.id));
+          setIsCartBouncing(true);
+          setTimeout(() => setIsCartBouncing(false), 380);
+        }, 620);
+      } catch {
+        setIsCartBouncing(true);
+        setTimeout(() => setIsCartBouncing(false), 380);
+      }
+    } else {
+      setIsCartBouncing(true);
+      setTimeout(() => setIsCartBouncing(false), 380);
+    }
+
     setCart((prev) => {
       const current = prev[itemId] || { qty: 0, notes: "", addedBy: customerName.trim() || "You" };
       return {
@@ -359,7 +443,38 @@ export default function CustomerTableOrderingPage({
   const sgst = Math.round(subtotalCart * 0.025 * 100) / 100;
   const grandTotal = Math.round(subtotalCart + cgst + sgst);
 
+  // Active Order / Bill Calculation for UPI Payment
+  const activeOrderSubtotal = (activeOrder?.order_items || []).reduce(
+    (sum, item) => sum + Number(item.unit_price) * item.qty,
+    0
+  );
+  const activeOrderCgst = Math.round(activeOrderSubtotal * 0.025 * 100) / 100;
+  const activeOrderSgst = Math.round(activeOrderSubtotal * 0.025 * 100) / 100;
+  const activeOrderGrandTotal = Math.round(activeOrderSubtotal + activeOrderCgst + activeOrderSgst);
+  const payableBillTotal = activeOrderGrandTotal > 0 ? activeOrderGrandTotal : grandTotal;
 
+  // 1-Tap Quick Re-Order candidates (Rotis, Drinks, Bestsellers)
+  const quickReorderCandidates = items
+    .filter((it) => {
+      const n = it.name.toLowerCase();
+      return (
+        n.includes("roti") ||
+        n.includes("naan") ||
+        n.includes("paratha") ||
+        n.includes("kulcha") ||
+        n.includes("water") ||
+        n.includes("coke") ||
+        n.includes("soda") ||
+        n.includes("drink") ||
+        n.includes("beverage") ||
+        n.includes("lassi") ||
+        n.includes("rice") ||
+        n.includes("papad") ||
+        n.includes("raita") ||
+        it.is_bestseller
+      );
+    })
+    .slice(0, 10);
 
   // Smart Upsell Items
   const upsellCandidates = items
@@ -967,48 +1082,217 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
-      {/* UPI QR Payment Modal */}
+      {/* UPI Settlement Modal with Direct 1-Tap App Buttons & QR Tab */}
       {showUpiQrModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-          style={{ backgroundColor: "rgba(34, 29, 22, 0.6)" }}
+          style={{ backgroundColor: "rgba(34, 29, 22, 0.65)" }}
           onClick={() => setShowUpiQrModal(false)}
         >
           <div
-            className="w-full max-w-xs p-6 rounded-2xl border shadow-2xl text-center bg-white"
+            className="w-full max-w-sm p-5 rounded-3xl border shadow-2xl text-center bg-white animate-scale-in"
             style={{ borderColor: "var(--hairline)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="text-3xl block mb-2">💳</span>
-            <h3 className="font-heading text-xl font-bold" style={{ color: "var(--ink)" }}>
-              Instant Table UPI Settlement
-            </h3>
-            <p className="text-xs text-stone-500 mt-1 mb-4">
-              Scan with any UPI App (GPay, PhonePe, Paytm, BHIM)
-            </p>
-
-            <div className="w-48 h-48 mx-auto bg-stone-100 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-3 relative overflow-hidden" style={{ borderColor: "var(--rust)" }}>
-              <div className="font-mono text-[11px] font-bold text-stone-800 mb-1">UPI ID: orderdesk@icici</div>
-              <div className="w-32 h-32 bg-white rounded-lg border flex items-center justify-center text-center p-2 shadow-inner">
-                <span className="text-xs font-mono font-bold text-stone-700">
-                  QR: Table {tableNumber}
-                  <br />₹{grandTotal || 0}
+            {/* Header with Amount */}
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="text-left">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Table {tableNumber} Settlement
+                </span>
+                <span className="font-heading text-2xl font-extrabold text-stone-900">
+                  ₹{payableBillTotal}
                 </span>
               </div>
-              <span className="text-[10px] text-stone-500 mt-1">Verified Merchant</span>
+              <button
+                type="button"
+                onClick={() => setShowUpiQrModal(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-200"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="mt-4 pt-3 border-t text-xs font-semibold text-stone-600">
-              Waiter will bring stamped tax receipt upon scan.
+            {/* Tab Switcher: 1-Tap UPI Apps vs Scan QR */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl my-3.5 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setActivePaymentTab("app");
+                }}
+                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  activePaymentTab === "app"
+                    ? "bg-white text-stone-900 shadow-sm"
+                    : "text-stone-500 hover:text-stone-800"
+                }`}
+              >
+                <span>📱</span>
+                <span>1-Tap UPI Apps</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setActivePaymentTab("qr");
+                }}
+                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  activePaymentTab === "qr"
+                    ? "bg-white text-stone-900 shadow-sm"
+                    : "text-stone-500 hover:text-stone-800"
+                }`}
+              >
+                <span>📷</span>
+                <span>Scan QR</span>
+              </button>
+            </div>
+
+            {/* TAB 1: Direct 1-Tap Native Mobile UPI Buttons */}
+            {activePaymentTab === "app" && (
+              <div className="space-y-2.5 my-2 text-left">
+                <p className="text-[11px] text-stone-500 text-center mb-3">
+                  Tap your preferred UPI app to pay ₹{payableBillTotal} directly on this phone.
+                </p>
+
+                {(() => {
+                  const upiMerchantId = "orderdesk@icici";
+                  const upiPayload = `upi://pay?pa=${upiMerchantId}&pn=${encodeURIComponent(
+                    restaurantName || "Order Desk"
+                  )}&am=${payableBillTotal}&cu=INR&tn=${encodeURIComponent(`Table ${tableNumber} Bill`)}`;
+
+                  return (
+                    <div className="space-y-2">
+                      {/* PhonePe */}
+                      <a
+                        href={upiPayload}
+                        onClick={() => triggerHaptic(15)}
+                        className="w-full py-2.5 px-4 rounded-xl flex items-center justify-between text-white font-bold text-xs shadow-sm active:scale-98 transition-transform"
+                        style={{ backgroundColor: "#5f259f" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🟣</span>
+                          <span>PhonePe</span>
+                        </div>
+                        <span className="text-[11px] opacity-90">Pay ₹{payableBillTotal} →</span>
+                      </a>
+
+                      {/* Google Pay */}
+                      <a
+                        href={upiPayload}
+                        onClick={() => triggerHaptic(15)}
+                        className="w-full py-2.5 px-4 rounded-xl flex items-center justify-between text-white font-bold text-xs shadow-sm active:scale-98 transition-transform"
+                        style={{ backgroundColor: "#0f9d58" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🟢</span>
+                          <span>Google Pay (GPay)</span>
+                        </div>
+                        <span className="text-[11px] opacity-90">Pay ₹{payableBillTotal} →</span>
+                      </a>
+
+                      {/* Paytm */}
+                      <a
+                        href={upiPayload}
+                        onClick={() => triggerHaptic(15)}
+                        className="w-full py-2.5 px-4 rounded-xl flex items-center justify-between text-white font-bold text-xs shadow-sm active:scale-98 transition-transform"
+                        style={{ backgroundColor: "#00b9f5" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🔵</span>
+                          <span>Paytm UPI</span>
+                        </div>
+                        <span className="text-[11px] opacity-90">Pay ₹{payableBillTotal} →</span>
+                      </a>
+
+                      {/* Any Other UPI App */}
+                      <a
+                        href={upiPayload}
+                        onClick={() => triggerHaptic(15)}
+                        className="w-full py-2.5 px-4 rounded-xl flex items-center justify-between bg-stone-900 text-white font-bold text-xs shadow-sm active:scale-98 transition-transform"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🇮🇳</span>
+                          <span>Any UPI App (BHIM / Cred / Bank)</span>
+                        </div>
+                        <span className="text-[11px] opacity-90">Open →</span>
+                      </a>
+                    </div>
+                  );
+                })()}
+
+                {/* Copy UPI ID Chip */}
+                <div className="pt-2">
+                  <div
+                    onClick={() => {
+                      triggerHaptic(10);
+                      if (typeof navigator !== "undefined" && navigator.clipboard) {
+                        navigator.clipboard.writeText("orderdesk@icici");
+                        setUpiCopied(true);
+                        setTimeout(() => setUpiCopied(false), 2500);
+                      }
+                    }}
+                    className="p-2 rounded-xl border border-dashed border-stone-300 bg-stone-50 flex items-center justify-between text-xs cursor-pointer hover:bg-stone-100"
+                  >
+                    <div className="flex items-center gap-1.5 text-stone-600">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">UPI ID:</span>
+                      <span className="font-mono font-bold text-stone-800">orderdesk@icici</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-amber-700">
+                      {upiCopied ? "✓ Copied!" : "📋 Copy"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Dynamic QR Code Scan */}
+            {activePaymentTab === "qr" && (
+              <div className="my-2 space-y-3">
+                <p className="text-[11px] text-stone-500">
+                  Scan with GPay, PhonePe, Paytm or BHIM on any companion phone:
+                </p>
+
+                {(() => {
+                  const upiMerchantId = "orderdesk@icici";
+                  const upiPayload = `upi://pay?pa=${upiMerchantId}&pn=${encodeURIComponent(
+                    restaurantName || "Order Desk"
+                  )}&am=${payableBillTotal}&cu=INR&tn=${encodeURIComponent(`Table ${tableNumber} Bill`)}`;
+                  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(
+                    upiPayload
+                  )}`;
+
+                  return (
+                    <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 inline-block mx-auto shadow-inner">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={qrUrl}
+                        alt={`UPI QR Table ${tableNumber}`}
+                        className="w-44 h-44 object-contain rounded-xl mx-auto shadow-xs bg-white"
+                      />
+                      <div className="text-[10px] font-mono font-bold text-stone-600 mt-2">
+                        orderdesk@icici · Table {tableNumber}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="text-[11px] text-stone-500">
+                  Total Bill: <strong className="text-stone-900 font-bold">₹{payableBillTotal}</strong>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-stone-100 text-[11px] text-stone-500">
+              Waiter will bring stamped tax receipt upon payment.
             </div>
 
             <button
               type="button"
               onClick={() => setShowUpiQrModal(false)}
-              className="w-full mt-4 py-2.5 text-xs font-bold rounded-xl cursor-pointer"
+              className="w-full mt-3 py-2.5 text-xs font-bold rounded-xl cursor-pointer shadow-sm active:scale-98 transition-all"
               style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)" }}
             >
-              Done / Settle at Counter
+              Done / Paid
             </button>
           </div>
         </div>
@@ -1418,6 +1702,103 @@ export default function CustomerTableOrderingPage({
         </div>
       </div>
 
+      {/* 1-Tap Quick Adds Carousel: Garam Rotis, Cold Drinks, Bestsellers */}
+      {quickReorderCandidates.length > 0 && selectedCat === "all" && !searchQuery && (
+        <div className="px-4 mb-2">
+          <div className="flex items-center justify-between pb-2">
+            <div className="flex items-center gap-1.5 text-xs font-extrabold" style={{ color: "var(--ink)" }}>
+              <span className="text-amber-500 animate-pulse text-sm">⚡</span>
+              <span>1-Tap Quick Adds</span>
+              <span className="text-[10px] font-normal text-stone-500">
+                (Hot Rotis, Cold Drinks & Extras)
+              </span>
+            </div>
+            {quickAddNotice && (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 animate-fade-in">
+                ✓ {quickAddNotice}
+              </span>
+            )}
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto pb-2 pt-0.5 scrollbar-none">
+            {quickReorderCandidates.map((qItem) => {
+              const inCartQty = cart[qItem.id]?.qty || 0;
+              const emoji = getFoodEmoji(qItem.name, qItem.is_veg);
+              return (
+                <div
+                  key={qItem.id}
+                  className="flex-shrink-0 w-36 sm:w-40 p-2.5 rounded-2xl border bg-white shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+                  style={{ borderColor: inCartQty > 0 ? "var(--rust)" : "var(--hairline)" }}
+                >
+                  <div className="flex items-start justify-between gap-1 mb-1">
+                    <span className="text-2xl">{emoji}</span>
+                    <span className={qItem.is_veg ? "veg-indicator" : "nonveg-indicator"} />
+                  </div>
+
+                  <div className="my-1">
+                    <div
+                      onClick={() => setPreviewDish(qItem)}
+                      className="font-bold text-xs leading-snug text-stone-900 line-clamp-1 cursor-pointer hover:underline"
+                      title={qItem.name}
+                    >
+                      {qItem.name}
+                    </div>
+                    <div className="font-receipt text-xs font-black text-stone-800 pt-0.5">
+                      ₹{qItem.price}
+                    </div>
+                  </div>
+
+                  <div className="mt-1">
+                    {inCartQty === 0 ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          addToCart(qItem.id, e);
+                          setQuickAddNotice(`${qItem.name} added!`);
+                          setTimeout(() => setQuickAddNotice(""), 2000);
+                        }}
+                        className="w-full py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-xs active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                        style={{
+                          backgroundColor: "var(--rust)",
+                          color: "var(--rust-text)",
+                        }}
+                      >
+                        <span>+ ADD</span>
+                      </button>
+                    ) : (
+                      <div
+                        className="h-7 flex items-center justify-between rounded-xl border shadow-xs overflow-hidden bg-white"
+                        style={{ borderColor: "var(--rust)" }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(qItem.id)}
+                          className="w-7 h-full flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-100"
+                          style={{ color: "var(--rust)" }}
+                        >
+                          -
+                        </button>
+                        <span className="font-receipt text-xs font-black px-1 text-center" style={{ color: "var(--ink)" }}>
+                          {inCartQty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => addToCart(qItem.id, e)}
+                          className="w-7 h-full flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-100"
+                          style={{ color: "var(--rust)" }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Menu Dish List */}
       <div className="px-4 space-y-3.5 mt-1">
         {filteredItems.length === 0 ? (
@@ -1435,6 +1816,7 @@ export default function CustomerTableOrderingPage({
             const inCartQty = cart[item.id]?.qty || 0;
             const foodEmoji = getFoodEmoji(item.name, item.is_veg);
             const isNotesOpen = expandedNotes[item.id] || false;
+            const spiciness = getSpiciness(item.name, item.description);
 
             return (
               <div
@@ -1450,23 +1832,39 @@ export default function CustomerTableOrderingPage({
                   <div className="flex-1 min-w-0 pr-1 space-y-0.5">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={item.is_veg ? "veg-indicator" : "nonveg-indicator"} />
+
+                      {/* Spiciness Indicator Badge */}
+                      {spiciness === "spicy" ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center gap-0.5">
+                          <span>🌶️🌶️</span>
+                          <span>Spicy</span>
+                        </span>
+                      ) : spiciness === "mild" ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-0.5">
+                          <span>🟢</span>
+                          <span>Mild</span>
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-0.5">
+                          <span>🌶️</span>
+                          <span>Medium</span>
+                        </span>
+                      )}
+
+                      {/* Bestseller Shimmer Badge */}
+                      {item.is_bestseller && (
+                        <span className="shimmer-badge text-[9px] font-black px-2 py-0.5 rounded-full text-stone-900 uppercase tracking-wider shadow-2xs inline-flex items-center gap-0.5">
+                          <span>★</span>
+                          <span>Bestseller</span>
+                        </span>
+                      )}
+
                       <span
                         onClick={() => setPreviewDish(item)}
-                        className="font-bold text-sm leading-tight text-stone-900 cursor-pointer hover:underline"
+                        className="font-bold text-sm leading-tight text-stone-900 cursor-pointer hover:underline block w-full mt-0.5"
                       >
                         {item.name}
                       </span>
-                      {item.is_bestseller && (
-                        <span
-                          className="text-[9px] font-black px-1.5 py-0.2 rounded-full shadow-2xs uppercase tracking-wide"
-                          style={{
-                            backgroundColor: "var(--brand-primary)",
-                            color: "var(--rust-text)",
-                          }}
-                        >
-                          ★ Bestseller
-                        </span>
-                      )}
                     </div>
 
                     <div className="font-receipt text-xs font-black text-stone-900 pt-0.5 flex items-baseline gap-1">
@@ -1515,7 +1913,7 @@ export default function CustomerTableOrderingPage({
                       {inCartQty === 0 ? (
                         <button
                           type="button"
-                          onClick={() => addToCart(item.id)}
+                          onClick={(e) => addToCart(item.id, e)}
                           className="h-7 px-3.5 rounded-md text-[11px] font-black uppercase tracking-wider shadow-md active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap"
                           style={{
                             backgroundColor: "var(--rust)",
@@ -1543,7 +1941,7 @@ export default function CustomerTableOrderingPage({
                           </span>
                           <button
                             type="button"
-                            onClick={() => addToCart(item.id)}
+                            onClick={(e) => addToCart(item.id, e)}
                             className="w-6 h-full flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-100 transition-colors active:scale-90"
                             style={{ color: "var(--rust)" }}
                           >
@@ -1603,7 +2001,9 @@ export default function CustomerTableOrderingPage({
                 triggerHaptic(14);
                 setIsReviewOpen(true);
               }}
-              className="w-full h-14 px-5 rounded-2xl flex items-center justify-between shadow-2xl active:scale-[0.99] transition-all cursor-pointer border backdrop-blur"
+              className={`w-full h-14 px-5 rounded-2xl flex items-center justify-between shadow-2xl active:scale-[0.99] transition-all cursor-pointer border backdrop-blur ${
+                isCartBouncing ? "cart-bounce" : ""
+              }`}
               style={{
                 backgroundColor: "var(--dark-surface)",
                 borderColor: "var(--hairline)",
@@ -1612,7 +2012,7 @@ export default function CustomerTableOrderingPage({
             >
               <div className="flex items-center gap-2.5">
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold shadow-sm"
                   style={{
                     backgroundColor: "var(--rust)",
                     color: "var(--rust-text)",
@@ -1641,6 +2041,32 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
+      {/* Floating Category Jump Button (Swiggy / Zomato style) */}
+      {!isReviewOpen && !isCallModalOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            triggerHaptic(12);
+            setIsCategorySheetOpen(true);
+          }}
+          className={`fixed z-40 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-2xl active:scale-95 transition-all cursor-pointer border backdrop-blur ${
+            totalCartCount > 0 ? "bottom-20 left-4" : "bottom-5 left-4"
+          }`}
+          style={{
+            backgroundColor: "rgba(31, 41, 55, 0.95)",
+            color: "#F9FAFB",
+            borderColor: "rgba(255, 190, 11, 0.4)",
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+          }}
+        >
+          <span className="text-sm">📖</span>
+          <span className="text-xs font-bold tracking-wide">Menu</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-400 text-stone-900 font-extrabold">
+            {categories.length}
+          </span>
+        </button>
+      )}
+
       {/* Floating Call Staff Buzzer Button (Always accessible anywhere on the menu) */}
       {features.callWaiter && !isReviewOpen && !isCallModalOpen && (
         <button
@@ -1664,6 +2090,120 @@ export default function CustomerTableOrderingPage({
             {waiterCooldown > 0 ? `Wait ${waiterCooldown}s` : "Call Waiter"}
           </span>
         </button>
+      )}
+
+      {/* Flying Particle Micro-Interaction Overlay */}
+      {flyingParticles.map((p) => (
+        <div
+          key={p.id}
+          className="flying-dot flex items-center justify-center w-8 h-8 rounded-full bg-amber-400 text-stone-900 font-black text-sm shadow-2xl border border-stone-900"
+          style={{
+            left: `${p.x}px`,
+            top: `${p.y}px`,
+            // @ts-expect-error CSS variable
+            "--tx": `${p.tx}px`,
+            "--ty": `${p.ty}px`,
+          }}
+        >
+          {p.emoji}
+        </div>
+      ))}
+
+      {/* Floating Category Quick-Jump Sheet Modal (Swiggy / Zomato style) */}
+      {isCategorySheetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(34, 29, 22, 0.6)" }}
+          onClick={() => setIsCategorySheetOpen(false)}
+        >
+          <div
+            className="w-full max-w-md max-h-[75vh] p-5 rounded-t-3xl flex flex-col justify-between overflow-y-auto shadow-2xl border-t-2 animate-slide-up bg-white"
+            style={{ borderColor: "var(--hairline)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-3" />
+
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <div>
+                  <h3 className="font-heading text-xl font-bold text-stone-900">
+                    Menu Categories
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    {categories.length} categories · {items.length} total dishes
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCategorySheetOpen(false)}
+                  className="w-8 h-8 rounded-full bg-stone-100 text-stone-600 flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Category Grid */}
+              <div className="grid grid-cols-2 gap-2.5 my-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic(10);
+                    setSelectedCat("all");
+                    setIsCategorySheetOpen(false);
+                  }}
+                  className={`p-3 rounded-2xl border flex items-center justify-between text-left cursor-pointer transition-all active:scale-95 ${
+                    selectedCat === "all"
+                      ? "bg-amber-100 border-amber-500 text-amber-900 font-bold shadow-xs"
+                      : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🍽️</span>
+                    <span className="text-xs">All Dishes</span>
+                  </div>
+                  <span className="font-mono text-xs opacity-75">({items.length})</span>
+                </button>
+
+                {categories.map((cat) => {
+                  const count = items.filter((i) => i.category_id === cat.id).length;
+                  const icon = getCategoryIcon(cat.name);
+                  const isSelected = selectedCat === cat.id;
+
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic(10);
+                        setSelectedCat(cat.id);
+                        setIsCategorySheetOpen(false);
+                      }}
+                      className={`p-3 rounded-2xl border flex items-center justify-between text-left cursor-pointer transition-all active:scale-95 ${
+                        isSelected
+                          ? "bg-amber-100 border-amber-500 text-amber-900 font-bold shadow-xs"
+                          : "bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate pr-1">
+                        <span className="text-xl flex-shrink-0">{icon}</span>
+                        <span className="text-xs truncate">{cat.name}</span>
+                      </div>
+                      <span className="font-mono text-xs opacity-75 flex-shrink-0">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCategorySheetOpen(false)}
+              className="w-full py-2.5 rounded-xl border border-stone-200 text-xs font-bold text-stone-600 cursor-pointer hover:bg-stone-50"
+            >
+              Close Menu
+            </button>
+          </div>
+        </div>
       )}
 
       {/* CART REVIEW & BILL SPLIT DRAWER */}
@@ -1901,15 +2441,38 @@ export default function CustomerTableOrderingPage({
                     <h3 className="font-heading text-xl font-bold text-stone-900">
                       {previewDish.name}
                     </h3>
+
+                    {/* Spiciness Indicator Badge in Preview */}
+                    {(() => {
+                      const spice = getSpiciness(previewDish.name, previewDish.description);
+                      if (spice === "spicy") {
+                        return (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 inline-flex items-center gap-0.5">
+                            <span>🌶️🌶️</span>
+                            <span>Hot & Spicy</span>
+                          </span>
+                        );
+                      }
+                      if (spice === "mild") {
+                        return (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-0.5">
+                            <span>🟢</span>
+                            <span>Mild & Gentle</span>
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-0.5">
+                          <span>🌶️</span>
+                          <span>Medium Spice</span>
+                        </span>
+                      );
+                    })()}
+
                     {previewDish.is_bestseller && (
-                      <span
-                        className="text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs uppercase tracking-wide"
-                        style={{
-                          backgroundColor: "var(--brand-primary)",
-                          color: "var(--rust-text)",
-                        }}
-                      >
-                        ★ Bestseller
+                      <span className="shimmer-badge text-[10px] font-black px-2.5 py-0.5 rounded-full text-stone-900 uppercase tracking-wider shadow-xs inline-flex items-center gap-0.5">
+                        <span>★</span>
+                        <span>Chef's Bestseller</span>
                       </span>
                     )}
                   </div>
@@ -1948,8 +2511,8 @@ export default function CustomerTableOrderingPage({
               {(cart[previewDish.id]?.qty || 0) === 0 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    addToCart(previewDish.id);
+                  onClick={(e) => {
+                    addToCart(previewDish.id, e);
                   }}
                   className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   style={{
@@ -1981,7 +2544,7 @@ export default function CustomerTableOrderingPage({
                     </span>
                     <button
                       type="button"
-                      onClick={() => addToCart(previewDish.id)}
+                      onClick={(e) => addToCart(previewDish.id, e)}
                       className="w-9 h-9 flex items-center justify-center font-bold text-sm cursor-pointer hover:bg-stone-100 transition-colors"
                       style={{ color: "var(--rust)" }}
                     >

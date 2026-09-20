@@ -1564,3 +1564,49 @@ footer {
   .table-grid { grid-template-columns: repeat(2, 1fr); }
   .quick-actions { grid-template-columns: 1fr; }
 }
+
+/* Micro-Interaction Animations */
+@keyframes cartBounce {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.06); }
+  70% { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+.cart-bounce {
+  animation: cartBounce 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes goldShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-badge {
+  background: linear-gradient(90deg, #F59E0B 0%, #FBBF24 50%, #F59E0B 100%);
+  background-size: 200% auto;
+  animation: goldShimmer 3s linear infinite;
+}
+
+@keyframes flyParticle {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.2);
+  }
+  60% {
+    opacity: 0.9;
+    transform: translate3d(var(--tx), calc(var(--ty) * 0.5), 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--tx), var(--ty), 0) scale(0.3);
+  }
+}
+
+.flying-dot {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  animation: flyParticle 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+

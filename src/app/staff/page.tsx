@@ -86,13 +86,13 @@ export default function StaffPage() {
 
   // Handle Role Change in Add Form to update default permissions
   function handleAddRoleChange(role: StaffMember["role"]) {
-    const isOwnerOrMgr = role === "owner" || role === "admin" || role === "manager";
-    const isCap = role === "captain";
+    const isOwner = role === "owner" || role === "admin" || role === "manager";
+    const isWaiter = role === "waiter" || role === "captain" || role === "staff";
     setNewStaff((prev) => ({
       ...prev,
       role,
-      canEditOrders: isOwnerOrMgr || isCap,
-      canDeleteOrders: isOwnerOrMgr,
+      canEditOrders: isOwner || isWaiter,
+      canDeleteOrders: isOwner,
     }));
   }
 
@@ -544,14 +544,12 @@ export default function StaffPage() {
                     onChange={(e) => handleAddRoleChange(e.target.value as StaffMember["role"])}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
                   >
-                    <option value="waiter">Waiter / Floor Staff (Order Taking)</option>
-                    <option value="captain">Captain (Floor Lead &amp; Table Orders)</option>
-                    <option value="kitchen">Kitchen Staff (KDS Display Chits Only)</option>
-                    <option value="cashier">Cashier (Billing &amp; Settlement)</option>
-                    <option value="manager">Restaurant Manager (Full Floor Access)</option>
+                    <option value="waiter">🛎️ Waiter (Floor Orders, Tables &amp; Service)</option>
+                    <option value="kitchen">🍳 Kitchen (Cooking &amp; KDS Display Only)</option>
+                    <option value="owner">👑 Owner / Manager (Full Access &amp; Billing)</option>
                   </select>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Kitchen staff only have access to /kitchen. Waiters/captains are blocked from /staff.
+                    Owner has full control. Waiters take orders on the floor. Kitchen only accesses /kitchen.
                   </p>
                 </div>
 
@@ -660,21 +658,19 @@ export default function StaffPage() {
                     value={editForm.role}
                     onChange={(e) => {
                       const r = e.target.value as StaffMember["role"];
-                      const isOwnerOrMgr = r === "manager" || r === "admin";
-                      const isCap = r === "captain";
+                      const isOwner = r === "owner" || r === "manager" || r === "admin";
+                      const isWaiter = r === "waiter" || r === "captain" || r === "staff";
                       setEditForm({
                         role: r,
-                        canEditOrders: isOwnerOrMgr || isCap || editForm.canEditOrders,
-                        canDeleteOrders: isOwnerOrMgr || editForm.canDeleteOrders,
+                        canEditOrders: isOwner || isWaiter || editForm.canEditOrders,
+                        canDeleteOrders: isOwner || editForm.canDeleteOrders,
                       });
                     }}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500"
                   >
-                    <option value="waiter">Waiter / Floor Staff</option>
-                    <option value="captain">Captain (Floor Lead)</option>
-                    <option value="kitchen">Kitchen Staff (KDS Display Only)</option>
-                    <option value="cashier">Cashier</option>
-                    <option value="manager">Restaurant Manager</option>
+                    <option value="waiter">🛎️ Waiter (Floor Orders, Tables &amp; Service)</option>
+                    <option value="kitchen">🍳 Kitchen (Cooking &amp; KDS Display Only)</option>
+                    <option value="owner">👑 Owner / Manager (Full Access &amp; Billing)</option>
                   </select>
                 </div>
 
