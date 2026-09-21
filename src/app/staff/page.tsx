@@ -7,6 +7,7 @@ type StaffPermissions = {
   canEditOrders: boolean;
   canDeleteOrders: boolean;
   assignedPin?: string;
+  phone?: string;
 };
 
 type StaffMember = {
@@ -15,6 +16,7 @@ type StaffMember = {
   role: "waiter" | "captain" | "kitchen" | "cashier" | "manager" | "owner" | "admin" | "staff";
   is_active: boolean;
   created_at: string;
+  phone?: string;
   permissions?: StaffPermissions;
 };
 
@@ -421,7 +423,14 @@ export default function StaffPage() {
                       <tr key={member.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="px-6 py-4">
                           <div className="font-bold text-white text-sm">{member.name}</div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">ID: {member.id.slice(0, 8)}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] text-slate-500 font-mono">ID: {member.id.slice(0, 8)}</span>
+                            {(member.phone || member.permissions?.phone) && (
+                              <span className="text-[10px] text-emerald-400/90 font-mono font-medium">
+                                📞 {member.phone || member.permissions?.phone}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-6 py-4">
@@ -495,7 +504,9 @@ export default function StaffPage() {
                                 const roleLabel = member.role === "kitchen" ? "Kitchen KDS" : member.role === "owner" ? "Owner / Manager" : "Waiter";
                                 const pinText = member.permissions?.assignedPin ? `\n🔑 *PIN*: ${member.permissions.assignedPin}` : "";
                                 const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${member.name}*!\nYour shift terminal access is ready:\n🔗 *Direct Login*: ${staffLoginUrl}\n👤 *Staff Name*: ${member.name}\n💼 *Role*: ${roleLabel}${pinText}\n\nOpen this link on your phone to clock into your shift!`;
-                                return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                const phoneNum = (member.phone || member.permissions?.phone || "").replace(/\D/g, "");
+                                const phoneParam = phoneNum ? `phone=91${phoneNum.length === 10 ? phoneNum : phoneNum}&` : "";
+                                return `https://api.whatsapp.com/send?${phoneParam}text=${encodeURIComponent(msg)}`;
                               })()}
                               target="_blank"
                               rel="noopener noreferrer"

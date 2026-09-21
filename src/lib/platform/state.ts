@@ -47,6 +47,7 @@ export type StaffOrderPermissions = {
   canEditOrders: boolean;
   canDeleteOrders: boolean;
   assignedPin?: string;
+  phone?: string;
 };
 
 export type WaiterCallType = "waiter" | "water" | "bill" | "clean" | "cutlery" | "condiments" | "chair" | "ac" | "custom";
@@ -301,6 +302,7 @@ export function setStaffPermissions(
     canEditOrders: permissions.canEditOrders !== undefined ? Boolean(permissions.canEditOrders) : current.canEditOrders,
     canDeleteOrders: permissions.canDeleteOrders !== undefined ? Boolean(permissions.canDeleteOrders) : current.canDeleteOrders,
     assignedPin: permissions.assignedPin !== undefined ? permissions.assignedPin : current.assignedPin,
+    phone: permissions.phone !== undefined ? permissions.phone : current.phone,
   };
   savePlatformState(state);
   return state.staffPermissions[staffId];

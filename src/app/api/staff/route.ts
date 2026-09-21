@@ -2,51 +2,32 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSuperAdminUser } from "@/lib/auth/super-admin";
+import { resolveStaffContext } from "@/lib/auth/staff-context";
 import { getStaffPermissions, setStaffPermissions } from "@/lib/platform/state";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  const staffContext = await resolveStaffContext(user);
+  if (!staffContext) {
     return NextResponse.json({ message: "Staff authentication required" }, { status: 401 });
   }
 
-  const isSuper = await isSuperAdminUser(user);
-  const admin = createAdminClient();
-
-  const { data: currentStaff } = await admin
-    .from("staff_users")
-    .select("restaurant_id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  let targetRestaurantId = currentStaff?.restaurant_id;
-
-  if (!targetRestaurantId) {
-    if (isSuper) {
-      // Super admin viewing staff: pick active restaurant
-      const { data: latestResto } = await admin
-        .from("restaurants")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      targetRestaurantId = latestResto?.id;
-    }
-  }
-
-  if (!targetRestaurantId) {
-    return NextResponse.json({ message: "No restaurant identified" }, { status: 404 });
-  }
-
-  if (!isSuper && (!currentStaff || !["admin", "owner", "manager"].includes(currentStaff.role))) {
+  const isAuthorized =
+    staffContext.isSuperAdmin || ["admin", "owner", "manager"].includes(staffContext.role);
+  if (!isAuthorized) {
     return NextResponse.json({ message: "Manager or Owner access required" }, { status: 403 });
   }
 
+  const url = new URL(request.url);
+  const targetRestaurantId =
+    (staffContext.isSuperAdmin && url.searchParams.get("restaurantId")) ||
+    staffContext.restaurantId;
+
+  const admin = createAdminClient();
   const [restaurantRes, staffRes] = await Promise.all([
     admin
       .from("restaurants")
@@ -65,16 +46,20 @@ export async function GET() {
     return NextResponse.json({ message: "Unable to load staff" }, { status: 500 });
   }
 
-  const staffWithPerms = (staffRes.data ?? []).map((s) => ({
-    ...s,
-    role: s.role === "staff" ? "waiter" : s.role === "admin" ? "owner" : s.role,
-    permissions: getStaffPermissions(s.id, s.role),
-  }));
+  const staffWithPerms = (staffRes.data ?? []).map((s) => {
+    const perms = getStaffPermissions(s.id, s.role);
+    return {
+      ...s,
+      role: s.role === "staff" ? "waiter" : s.role === "admin" ? "owner" : s.role,
+      phone: perms.phone,
+      permissions: perms,
+    };
+  });
 
   return NextResponse.json({
     ok: true,
     restaurantId: targetRestaurantId,
-    restaurantName: restaurantRes.data?.name || "Order Desk",
+    restaurantName: restaurantRes.data?.name || staffContext.restaurantName || "Order Desk",
     staff: staffWithPerms,
   });
 }
@@ -85,42 +70,30 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  const staffContext = await resolveStaffContext(user);
+  if (!staffContext) {
     return NextResponse.json({ message: "Staff authentication required" }, { status: 401 });
   }
 
-  const isSuper = await isSuperAdminUser(user);
-  const admin = createAdminClient();
-  const { data: currentStaff } = await admin
-    .from("staff_users")
-    .select("restaurant_id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  let targetRestaurantId = currentStaff?.restaurant_id;
-  if (!targetRestaurantId && isSuper) {
-    const { data: latestResto } = await admin
-      .from("restaurants")
-      .select("id")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    targetRestaurantId = latestResto?.id;
+  const isAuthorized =
+    staffContext.isSuperAdmin || ["admin", "owner", "manager"].includes(staffContext.role);
+  if (!isAuthorized) {
+    return NextResponse.json({ message: "Manager or Owner access required" }, { status: 403 });
   }
+
+  const body = await request.json().catch(() => ({}));
+  const targetRestaurantId =
+    (staffContext.isSuperAdmin && body.restaurantId) || staffContext.restaurantId;
 
   if (!targetRestaurantId) {
     return NextResponse.json({ message: "No restaurant identified" }, { status: 404 });
   }
 
-  if (!isSuper && (!currentStaff || !["admin", "owner", "manager"].includes(currentStaff.role))) {
-    return NextResponse.json({ message: "Manager or Owner access required" }, { status: 403 });
-  }
-
-  const body = await request.json().catch(() => ({}));
   const name = String(body.name ?? "").trim();
   const rawRole = String(body.role ?? "waiter").trim().toLowerCase();
   const role = rawRole === "staff" ? "waiter" : rawRole;
   const pin = String(body.pin ?? "").trim();
+  const phone = String(body.phone ?? "").trim();
 
   if (!name) {
     return NextResponse.json({ message: "Staff member name is required" }, { status: 400 });
@@ -153,6 +126,7 @@ export async function POST(request: Request) {
   }
 
   const pinHash = await bcrypt.hash(pin, 10);
+  const admin = createAdminClient();
 
   const { data: newMember, error } = await admin
     .from("staff_users")
@@ -170,13 +144,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 
-  // Save granular order permissions
+  // Save granular order permissions and phone
   const permissions = setStaffPermissions(
     newMember.id,
     {
       canEditOrders: body.canEditOrders !== undefined ? Boolean(body.canEditOrders) : undefined,
       canDeleteOrders: body.canDeleteOrders !== undefined ? Boolean(body.canDeleteOrders) : undefined,
       assignedPin: pin,
+      phone: phone || undefined,
     },
     displayRole
   );
@@ -184,7 +159,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     restaurantId: targetRestaurantId,
-    staff: { ...newMember, role: displayRole, permissions },
+    staff: { ...newMember, role: displayRole, phone, permissions },
   }, { status: 201 });
 }
 
@@ -194,29 +169,25 @@ export async function PATCH(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  const staffContext = await resolveStaffContext(user);
+  if (!staffContext) {
     return NextResponse.json({ message: "Staff authentication required" }, { status: 401 });
   }
 
-  const isSuper = await isSuperAdminUser(user);
-  const admin = createAdminClient();
-  const { data: currentStaff } = await admin
-    .from("staff_users")
-    .select("restaurant_id, role")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  if (!isSuper && (!currentStaff || !["admin", "owner", "manager"].includes(currentStaff.role))) {
+  const isAuthorized =
+    staffContext.isSuperAdmin || ["admin", "owner", "manager"].includes(staffContext.role);
+  if (!isAuthorized) {
     return NextResponse.json({ message: "Manager or Owner access required" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));
-  const { staffId, isActive, newPin, role, canEditOrders, canDeleteOrders } = body;
+  const { staffId, isActive, newPin, role, canEditOrders, canDeleteOrders, phone } = body;
 
   if (!staffId) {
     return NextResponse.json({ message: "staffId is required" }, { status: 400 });
   }
 
+  const admin = createAdminClient();
   const updates: Record<string, unknown> = {};
   if (isActive !== undefined) updates.is_active = Boolean(isActive);
   if (role) {
@@ -241,8 +212,8 @@ export async function PATCH(request: Request) {
     .update(updates)
     .eq("id", staffId);
 
-  if (!isSuper && currentStaff) {
-    query = query.eq("restaurant_id", currentStaff.restaurant_id);
+  if (!staffContext.isSuperAdmin) {
+    query = query.eq("restaurant_id", staffContext.restaurantId);
   }
 
   const { data: updated, error } = await query
@@ -253,14 +224,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ message: error.message }, { status: 500 });
   }
 
-  // Update permissions and/or assignedPin if provided
-  if (canEditOrders !== undefined || canDeleteOrders !== undefined || newPin) {
+  // Update permissions and/or assignedPin / phone if provided
+  if (canEditOrders !== undefined || canDeleteOrders !== undefined || newPin || phone !== undefined) {
     setStaffPermissions(
       staffId,
       {
         canEditOrders,
         canDeleteOrders,
         assignedPin: newPin ? String(newPin).trim() : undefined,
+        phone: phone !== undefined ? String(phone).trim() : undefined,
       },
       updated.role
     );
@@ -269,5 +241,8 @@ export async function PATCH(request: Request) {
   const permissions = getStaffPermissions(updated.id, updated.role);
   const displayRole = updated.role === "staff" ? "waiter" : updated.role === "admin" ? "owner" : updated.role;
 
-  return NextResponse.json({ ok: true, staff: { ...updated, role: displayRole, permissions } });
+  return NextResponse.json({
+    ok: true,
+    staff: { ...updated, role: displayRole, phone: permissions.phone, permissions },
+  });
 }

@@ -5,7 +5,7 @@ import { isSuperAdminUser } from "@/lib/auth/super-admin";
 import { getStaffPermissions, StaffOrderPermissions } from "@/lib/platform/state";
 
 export type ResolvedStaffContext = {
-  user: User;
+  user: User | null;
   staffId: string;
   name: string;
   role: string;
@@ -15,9 +15,9 @@ export type ResolvedStaffContext = {
   permissions: StaffOrderPermissions;
 };
 
-export async function resolveStaffContext(user: User): Promise<ResolvedStaffContext | null> {
+export async function resolveStaffContext(user?: User | null): Promise<ResolvedStaffContext | null> {
   const admin = createAdminClient();
-  const isSuper = await isSuperAdminUser(user);
+  const isSuper = user ? await isSuperAdminUser(user) : false;
   const cookieStore = await cookies();
 
   // Check impersonation for Super Admin
@@ -29,7 +29,7 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
         if (imp && imp.id) {
           const perms = getStaffPermissions("ghost-owner", "owner");
           return {
-            user,
+            user: user ?? null,
             staffId: "ghost-owner",
             name: `${imp.name} (Ghost Mode)`,
             role: "owner",
@@ -73,17 +73,37 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
   if (activeStaffFromCookie?.id && activeStaffFromCookie?.restaurant_id) {
     const { data } = await admin
       .from("staff_users")
-      .select("id, name, role, restaurant_id")
+      .select("id, name, role, restaurant_id, auth_user_id")
       .eq("id", activeStaffFromCookie.id)
       .maybeSingle();
 
     if (data) {
       staffRecord = data;
+      // Auto-link auth_user_id if not linked
+      if (!data.auth_user_id && user?.id) {
+        await admin.from("staff_users").update({ auth_user_id: user.id }).eq("id", data.id);
+      }
+    } else {
+      // Cookie had restaurant_id, verify restaurant exists in database
+      const { data: resto } = await admin
+        .from("restaurants")
+        .select("id, name")
+        .eq("id", activeStaffFromCookie.restaurant_id)
+        .maybeSingle();
+
+      if (resto) {
+        staffRecord = {
+          id: activeStaffFromCookie.id,
+          name: activeStaffFromCookie.name || "Staff",
+          role: activeStaffFromCookie.role || "owner",
+          restaurant_id: resto.id,
+        };
+      }
     }
   }
 
   // 2. Fallback: Lookup staff by auth_user_id (e.g. direct Supabase login)
-  if (!staffRecord) {
+  if (!staffRecord && user?.id) {
     const { data } = await admin
       .from("staff_users")
       .select("id, name, role, restaurant_id")
@@ -96,11 +116,12 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
   }
 
   // 3. Fallback: Match restaurant by owner_email if current user is owner
-  if (!staffRecord && user.email) {
+  if (!staffRecord && user?.email) {
+    const cleanEmail = user.email.toLowerCase().trim();
     const { data: restaurant } = await admin
       .from("restaurants")
       .select("id, name")
-      .eq("owner_email", user.email)
+      .ilike("owner_email", cleanEmail)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -109,13 +130,16 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
       // Find or treat as owner of this restaurant
       const { data: ownerStaff } = await admin
         .from("staff_users")
-        .select("id, name, role, restaurant_id")
+        .select("id, name, role, restaurant_id, auth_user_id")
         .eq("restaurant_id", restaurant.id)
         .eq("role", "owner")
         .maybeSingle();
 
       if (ownerStaff) {
         staffRecord = ownerStaff;
+        if (!ownerStaff.auth_user_id && user?.id) {
+          await admin.from("staff_users").update({ auth_user_id: user.id }).eq("id", ownerStaff.id);
+        }
       } else {
         staffRecord = {
           id: user.id,
@@ -138,7 +162,7 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
 
     if (latestResto) {
       staffRecord = {
-        id: user.id,
+        id: user?.id || "super-admin",
         name: "Super Admin",
         role: "owner",
         restaurant_id: latestResto.id,
@@ -160,7 +184,7 @@ export async function resolveStaffContext(user: User): Promise<ResolvedStaffCont
   const permissions = getStaffPermissions(staffRecord.id, staffRecord.role);
 
   return {
-    user,
+    user: user ?? null,
     staffId: staffRecord.id,
     name: staffRecord.name,
     role: staffRecord.role,
