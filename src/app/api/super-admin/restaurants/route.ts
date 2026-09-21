@@ -11,6 +11,8 @@ import {
   setRestaurantTheme,
   getRestaurantFeatures,
   setRestaurantFeatures,
+  getRestaurantPhone,
+  setRestaurantPhone,
 } from "@/lib/platform/state";
 
 export async function GET(request: Request) {
@@ -95,7 +97,7 @@ export async function GET(request: Request) {
         name: r.name,
         ownerEmail: r.owner_email,
         ownerName: owner?.name || "Unassigned",
-        contactPhone: r.contact_phone || null,
+        contactPhone: getRestaurantPhone(r.id) || r.contact_phone || null,
         gstin: r.gstin,
         subscriptionPlan: r.subscription_plan || "trial",
         subscriptionStatus: r.subscription_status || "active",
@@ -166,25 +168,30 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
 
-    // 1. Insert restaurant
+    // 1. Insert restaurant (using verified columns from Postgres schema)
     const { data: restaurant, error: restoError } = await admin
       .from("restaurants")
       .insert({
         name,
         owner_email: ownerEmail,
-        contact_phone: contactPhone,
         gstin,
         subscription_plan: plan,
         subscription_status: "active",
       })
-      .select("id, name, contact_phone")
+      .select("id, name")
       .single();
 
     if (restoError || !restaurant) {
+      console.error("Restaurant insert failed:", restoError);
       return NextResponse.json(
         { ok: false, message: restoError?.message || "Failed to create restaurant record" },
         { status: 500 }
       );
+    }
+
+    // Persist phone in platform state
+    if (contactPhone) {
+      setRestaurantPhone(restaurant.id, contactPhone);
     }
 
     // 2. Hash PIN and create owner staff user

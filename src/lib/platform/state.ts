@@ -108,6 +108,7 @@ export type PlatformState = {
   restaurantThemes?: Record<string, RestaurantThemeType>;
   restaurantFeatures?: Record<string, RestaurantFeatures>;
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
+  restaurantPhones?: Record<string, string>;
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -431,3 +432,20 @@ export function setOrderPrepTime(
   savePlatformState(state);
   return estimate;
 }
+
+export function getRestaurantPhone(restaurantId?: string): string | null {
+  if (!restaurantId) return null;
+  const state = getPlatformState();
+  return state.restaurantPhones?.[restaurantId] || null;
+}
+
+export function setRestaurantPhone(restaurantId: string, phone: string): string {
+  const state = getPlatformState();
+  if (!state.restaurantPhones) {
+    state.restaurantPhones = {};
+  }
+  state.restaurantPhones[restaurantId] = phone;
+  savePlatformState(state);
+  return phone;
+}
+

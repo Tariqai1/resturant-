@@ -103,6 +103,7 @@ export default function SuperAdminPage() {
 
   // Modals state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [onboardError, setOnboardError] = useState("");
   const [onboardSuccessModal, setOnboardSuccessModal] = useState<{
     id: string;
     name: string;
@@ -442,8 +443,26 @@ export default function SuperAdminPage() {
   // Handle Onboard Restaurant Submit
   const handleOnboardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newResto.name || !newResto.ownerName || !newResto.ownerEmail) {
-      showToast("Please fill all required fields");
+    setOnboardError("");
+
+    if (!newResto.name.trim()) {
+      setOnboardError("Please enter Restaurant Name");
+      return;
+    }
+    if (!newResto.ownerName.trim()) {
+      setOnboardError("Please enter Owner Full Name");
+      return;
+    }
+    if (!newResto.ownerEmail.trim()) {
+      setOnboardError("Please enter Owner Email");
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(newResto.ownerEmail.trim())) {
+      setOnboardError("Please enter a valid email address (e.g. owner@spiceroute.com)");
+      return;
+    }
+    if (!/^\d{4}$/.test(newResto.pin.trim())) {
+      setOnboardError("Owner PIN must be exactly 4 digits (e.g. 1234)");
       return;
     }
 
@@ -455,9 +474,10 @@ export default function SuperAdminPage() {
           body: JSON.stringify(newResto),
         });
         const data = await res.json();
-        if (data.ok) {
+        if (res.ok && data.ok) {
           showToast(data.message || "Restaurant onboarded!");
           setShowOnboardModal(false);
+          setOnboardError("");
           setOnboardSuccessModal({
             id: data.restaurantId || data.restaurant?.id,
             name: data.restaurant?.name || newResto.name,
@@ -479,9 +499,12 @@ export default function SuperAdminPage() {
           });
           fetchData();
         } else {
-          showToast(`Onboarding failed: ${data.message}`);
+          setOnboardError(data.message || "Onboarding failed. Please verify inputs.");
+          showToast(`Onboarding failed: ${data.message || "Error"}`);
         }
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to connect to server";
+        setOnboardError(msg);
         showToast("Failed to connect to server");
       }
     });
@@ -921,7 +944,10 @@ export default function SuperAdminPage() {
 
           {/* Primary Action: Onboard Restaurant */}
           <button
-            onClick={() => setShowOnboardModal(true)}
+            onClick={() => {
+              setOnboardError("");
+              setShowOnboardModal(true);
+            }}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-[#D96B27] to-[#B85418] hover:from-[#E3752F] hover:to-[#C65D1E] text-white px-5 py-2.5 rounded-lg text-xs font-bold shadow-lg shadow-[#D96B27]/20 border border-[#FF8A42]/30 transition-all cursor-pointer"
           >
             <i className="fa-solid fa-plus text-xs" />
@@ -1495,6 +1521,13 @@ export default function SuperAdminPage() {
             </div>
 
             <form onSubmit={handleOnboardSubmit} className="space-y-4 text-xs">
+              {onboardError && (
+                <div className="p-3.5 bg-red-950/80 border border-red-800/80 text-red-200 text-xs rounded-xl flex items-center gap-2.5 font-mono animate-fade-in">
+                  <i className="fa-solid fa-triangle-exclamation text-red-400 text-sm flex-shrink-0" />
+                  <span>{onboardError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">Restaurant Name *</label>
