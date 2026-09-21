@@ -6,6 +6,7 @@ import Link from "next/link";
 type StaffPermissions = {
   canEditOrders: boolean;
   canDeleteOrders: boolean;
+  assignedPin?: string;
 };
 
 type StaffMember = {
@@ -492,7 +493,8 @@ export default function StaffPage() {
                                 const origin = typeof window !== "undefined" ? window.location.origin : "";
                                 const staffLoginUrl = `${origin}/login?resto=${restaurantId}&role=${member.role}&staff=${member.id}`;
                                 const roleLabel = member.role === "kitchen" ? "Kitchen KDS" : member.role === "owner" ? "Owner / Manager" : "Waiter";
-                                const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${member.name}*!\nYour shift terminal access is ready:\n🔗 *Direct Login*: ${staffLoginUrl}\n💼 *Role*: ${roleLabel}\n\nOpen this link on your phone to clock into your shift!`;
+                                const pinText = member.permissions?.assignedPin ? `\n🔑 *PIN*: ${member.permissions.assignedPin}` : "";
+                                const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${member.name}*!\nYour shift terminal access is ready:\n🔗 *Direct Login*: ${staffLoginUrl}\n👤 *Staff Name*: ${member.name}\n💼 *Role*: ${roleLabel}${pinText}\n\nOpen this link on your phone to clock into your shift!`;
                                 return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
                               })()}
                               target="_blank"
@@ -915,7 +917,7 @@ export default function StaffPage() {
                     const origin = typeof window !== "undefined" ? window.location.origin : "";
                     const loginUrl = `${origin}/login?resto=${restaurantId}&role=${staffSuccessModal.role}&staff=${staffSuccessModal.id}&pin=${staffSuccessModal.pin}`;
                     const phone = (staffSuccessModal.phone || "").replace(/\D/g, "");
-                    const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${staffSuccessModal.name}*!\nYour login for OrderDesk is ready:\n🔗 *1-Tap Login Link*: ${loginUrl}\n💼 *Role*: ${staffSuccessModal.role.toUpperCase()}\n🔑 *Your PIN*: ${staffSuccessModal.pin}\n\nTap the link above on your phone to open your shift!`;
+                    const msg = `👋 *${restaurantName} - Staff Shift Access*\n\nNamaste *${staffSuccessModal.name}*!\nYour staff terminal access for OrderDesk is ready:\n\n🔗 *1-Tap Shift Link*: ${loginUrl}\n👤 *Staff Name*: ${staffSuccessModal.name}\n💼 *Role*: ${staffSuccessModal.role.toUpperCase()}\n🔑 *Your PIN / Password*: ${staffSuccessModal.pin}\n\nTap the link above on your phone or tablet to start your shift immediately!`;
                     return phone
                       ? `https://api.whatsapp.com/send?phone=91${phone.length === 10 ? phone : phone}&text=${encodeURIComponent(msg)}`
                       : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;

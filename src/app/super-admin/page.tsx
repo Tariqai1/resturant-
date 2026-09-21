@@ -1076,7 +1076,7 @@ export default function SuperAdminPage() {
                                 const origin = typeof window !== "undefined" ? window.location.origin : "";
                                 const loginUrl = `${origin}/login?resto=${r.id}&role=owner`;
                                 const cleanPhone = (r.contactPhone || "").replace(/\D/g, "");
-                                const msg = `👋 *OrderDesk Login - ${r.name}*\n\n🔗 *Dashboard Link*: ${loginUrl}\n👤 *Owner*: ${r.ownerName}\n\nOpen this link on your mobile or tablet to access your restaurant desk!`;
+                                const msg = `👋 *OrderDesk Login - ${r.name}*\n\n🔗 *Dashboard Link*: ${loginUrl}\n👤 *Owner*: ${r.ownerName}\n📧 *Email*: ${r.ownerEmail}\n\nOpen this link on your mobile or tablet to access your restaurant desk!`;
                                 return cleanPhone
                                   ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
                                   : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
@@ -1651,6 +1651,10 @@ export default function SuperAdminPage() {
                 <span>Owner:</span>
                 <span className="text-white font-bold">{onboardSuccessModal.ownerName}</span>
               </div>
+              <div className="flex justify-between items-center text-[#A89F91] border-b border-[#241E18] pb-2">
+                <span>Owner Email:</span>
+                <span className="text-white font-bold">{onboardSuccessModal.ownerEmail}</span>
+              </div>
               {onboardSuccessModal.contactPhone && (
                 <div className="flex justify-between items-center text-[#A89F91] border-b border-[#241E18] pb-2">
                   <span>WhatsApp / Phone:</span>
@@ -1658,7 +1662,7 @@ export default function SuperAdminPage() {
                 </div>
               )}
               <div className="flex justify-between items-center text-[#A89F91]">
-                <span>Owner PIN:</span>
+                <span>Owner PIN / Password:</span>
                 <span className="text-amber-400 font-bold text-sm tracking-widest bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/60">
                   {onboardSuccessModal.pin}
                 </span>
@@ -1685,7 +1689,7 @@ export default function SuperAdminPage() {
                   const origin = typeof window !== "undefined" ? window.location.origin : "";
                   const loginUrl = `${origin}/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`;
                   const cleanPhone = (onboardSuccessModal.contactPhone || "").replace(/\D/g, "");
-                  const msg = `🎉 *Welcome to OrderDesk, ${onboardSuccessModal.name}!*\n\nYour restaurant management dashboard is ready:\n🔗 *Direct Login Link*: ${loginUrl}\n\n👤 *Owner*: ${onboardSuccessModal.ownerName}\n🔑 *Your Secret PIN*: ${onboardSuccessModal.pin}\n\nTap the link above to instantly access your restaurant desk, live tables, kitchen display, and digital menu.`;
+                  const msg = `🎉 *Welcome to OrderDesk, ${onboardSuccessModal.name}!*\n\nYour restaurant management dashboard is ready:\n🔗 *Direct Login Link*: ${loginUrl}\n\n👤 *Owner*: ${onboardSuccessModal.ownerName}\n📧 *Owner Email*: ${onboardSuccessModal.ownerEmail}\n🔑 *Secret PIN / Password*: ${onboardSuccessModal.pin}\n\nTap the link above to instantly access your restaurant desk, live tables, kitchen display, and digital menu.`;
                   return cleanPhone
                     ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
                     : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
@@ -1704,7 +1708,7 @@ export default function SuperAdminPage() {
                   onClick={() => {
                     const origin = typeof window !== "undefined" ? window.location.origin : "";
                     const loginUrl = `${origin}/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`;
-                    const text = `Restaurant: ${onboardSuccessModal.name}\nOwner PIN: ${onboardSuccessModal.pin}\nLogin URL: ${loginUrl}`;
+                    const text = `Restaurant: ${onboardSuccessModal.name}\nOwner: ${onboardSuccessModal.ownerName}\nEmail: ${onboardSuccessModal.ownerEmail}\nOwner PIN: ${onboardSuccessModal.pin}\nLogin URL: ${loginUrl}`;
                     navigator.clipboard.writeText(text);
                     setCopiedLink(true);
                     setTimeout(() => setCopiedLink(false), 2500);
