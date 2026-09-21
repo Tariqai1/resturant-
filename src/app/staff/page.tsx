@@ -31,6 +31,7 @@ const roleBadges: Record<string, { label: string; color: string; bg: string; bor
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [restaurantName, setRestaurantName] = useState<string>("Order Desk");
+  const [restaurantId, setRestaurantId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -40,12 +41,23 @@ export default function StaffPage() {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [resettingPinMember, setResettingPinMember] = useState<StaffMember | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showKitchenModal, setShowKitchenModal] = useState(false);
+  const [copiedKitchenLink, setCopiedKitchenLink] = useState(false);
+  const [staffSuccessModal, setStaffSuccessModal] = useState<{
+    id: string;
+    name: string;
+    role: string;
+    pin: string;
+    phone?: string;
+  } | null>(null);
+  const [copiedStaffLink, setCopiedStaffLink] = useState(false);
 
   // New Staff Form
   const [newStaff, setNewStaff] = useState({
     name: "",
     role: "waiter" as StaffMember["role"],
     pin: "",
+    phone: "",
     canEditOrders: false,
     canDeleteOrders: false,
   });
@@ -77,6 +89,7 @@ export default function StaffPage() {
       if (!response.ok) throw new Error(data.message || "Unable to load staff");
       setStaff(data.staff || []);
       if (data.restaurantName) setRestaurantName(data.restaurantName);
+      if (data.restaurantId) setRestaurantId(data.restaurantId);
     } catch (error: unknown) {
       setErrorMessage(error instanceof Error ? error.message : "Error loading staff");
     } finally {
@@ -114,15 +127,29 @@ export default function StaffPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to add staff member");
 
+      const createdStaff = data.staff;
+      const createdPin = newStaff.pin;
+      const staffPhone = newStaff.phone;
+
       setIsAddingStaff(false);
       setNewStaff({
         name: "",
         role: "waiter",
         pin: "",
+        phone: "",
         canEditOrders: false,
         canDeleteOrders: false,
       });
-      showToast(`Staff member "${data.staff?.name || "Member"}" created successfully!`);
+
+      setStaffSuccessModal({
+        id: createdStaff?.id || "",
+        name: createdStaff?.name || "Staff Member",
+        role: createdStaff?.role || "waiter",
+        pin: createdPin,
+        phone: staffPhone,
+      });
+
+      showToast(`Staff member "${createdStaff?.name || "Member"}" created successfully!`);
       await loadStaff();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to add staff");
@@ -318,13 +345,24 @@ export default function StaffPage() {
             </p>
           </div>
 
-          <button
-            onClick={() => setIsAddingStaff(true)}
-            className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-orange-950/50 border border-orange-400/30 transition-all cursor-pointer"
-          >
-            <span>+</span>
-            <span>Add New Staff</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowKitchenModal(true)}
+              className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+              title="Open or Share 1-Tap Kitchen Display Link"
+            >
+              <span>🍳</span>
+              <span>Kitchen KDS Link</span>
+            </button>
+
+            <button
+              onClick={() => setIsAddingStaff(true)}
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-orange-950/50 border border-orange-400/30 transition-all cursor-pointer"
+            >
+              <span>+</span>
+              <span>Add New Staff</span>
+            </button>
+          </div>
         </header>
 
         {/* Staff Table Section */}
@@ -447,7 +485,25 @@ export default function StaffPage() {
                         </td>
 
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* WhatsApp Shift Invite */}
+                            <a
+                              href={(() => {
+                                const origin = typeof window !== "undefined" ? window.location.origin : "";
+                                const staffLoginUrl = `${origin}/login?resto=${restaurantId}&role=${member.role}&staff=${member.id}`;
+                                const roleLabel = member.role === "kitchen" ? "Kitchen KDS" : member.role === "owner" ? "Owner / Manager" : "Waiter";
+                                const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${member.name}*!\nYour shift terminal access is ready:\n🔗 *Direct Login*: ${staffLoginUrl}\n💼 *Role*: ${roleLabel}\n\nOpen this link on your phone to clock into your shift!`;
+                                return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                              })()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                              title="Send Shift Access Link via WhatsApp"
+                            >
+                              <span>📲</span>
+                              <span>Share</span>
+                            </a>
+
                             {/* Reset PIN */}
                             <button
                               onClick={() => {
@@ -569,6 +625,23 @@ export default function StaffPage() {
                   />
                   <small className="text-[10px] text-slate-500 block mt-1">
                     Used for fast PIN switching on counter tablet / station terminal.
+                  </small>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 uppercase mb-1 flex items-center justify-between">
+                    <span>Staff WhatsApp / Phone (Optional)</span>
+                    <span className="text-emerald-400">📲</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={newStaff.phone}
+                    onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-orange-500"
+                  />
+                  <small className="text-[10px] text-slate-500 block mt-1">
+                    Enter phone to instantly WhatsApp their 1-tap shift login link and PIN.
                   </small>
                 </div>
 
@@ -787,6 +860,183 @@ export default function StaffPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 4: STAFF CREATED & WHATSAPP DISPATCH */}
+        {staffSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+              <div className="text-center space-y-1.5">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-xl shadow-lg">
+                  🎉
+                </div>
+                <h3 className="text-base font-bold text-white">Staff Member Created!</h3>
+                <p className="text-xs text-slate-400">
+                  Send shift login instructions and PIN directly to {staffSuccessModal.name}.
+                </p>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Name:</span>
+                  <span className="text-white font-bold">{staffSuccessModal.name}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>Role:</span>
+                  <span className="text-orange-400 font-bold uppercase">{staffSuccessModal.role}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400">
+                  <span>4-Digit PIN:</span>
+                  <span className="text-amber-400 font-bold bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/60 tracking-widest">
+                    {staffSuccessModal.pin}
+                  </span>
+                </div>
+              </div>
+
+              {/* Direct Link */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1">
+                <div className="text-[10px] uppercase font-mono text-slate-400 flex justify-between">
+                  <span>1-Tap Shift Login Link:</span>
+                  {copiedStaffLink && <span className="text-emerald-400 font-bold">✓ Copied</span>}
+                </div>
+                <div className="text-xs font-mono text-slate-300 break-all bg-black/40 p-2 rounded border border-slate-800">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/login?resto=${restaurantId}&role=${staffSuccessModal.role}&staff=${staffSuccessModal.id}&pin=${staffSuccessModal.pin}`
+                    : ""}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2">
+                <a
+                  href={(() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "";
+                    const loginUrl = `${origin}/login?resto=${restaurantId}&role=${staffSuccessModal.role}&staff=${staffSuccessModal.id}&pin=${staffSuccessModal.pin}`;
+                    const phone = (staffSuccessModal.phone || "").replace(/\D/g, "");
+                    const msg = `👋 *${restaurantName} - Shift Access*\n\nNamaste *${staffSuccessModal.name}*!\nYour login for OrderDesk is ready:\n🔗 *1-Tap Login Link*: ${loginUrl}\n💼 *Role*: ${staffSuccessModal.role.toUpperCase()}\n🔑 *Your PIN*: ${staffSuccessModal.pin}\n\nTap the link above on your phone to open your shift!`;
+                    return phone
+                      ? `https://api.whatsapp.com/send?phone=91${phone.length === 10 ? phone : phone}&text=${encodeURIComponent(msg)}`
+                      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                >
+                  <span>📲</span>
+                  <span>Send Credentials on WhatsApp</span>
+                </a>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const origin = typeof window !== "undefined" ? window.location.origin : "";
+                      const loginUrl = `${origin}/login?resto=${restaurantId}&role=${staffSuccessModal.role}&staff=${staffSuccessModal.id}&pin=${staffSuccessModal.pin}`;
+                      const text = `Staff: ${staffSuccessModal.name}\nRole: ${staffSuccessModal.role}\nPIN: ${staffSuccessModal.pin}\nShift Login: ${loginUrl}`;
+                      navigator.clipboard.writeText(text);
+                      setCopiedStaffLink(true);
+                      setTimeout(() => setCopiedStaffLink(false), 2500);
+                    }}
+                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer border border-slate-700 text-center"
+                  >
+                    {copiedStaffLink ? "Copied!" : "📋 Copy Link & PIN"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStaffSuccessModal(null)}
+                    className="py-2 px-3 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold cursor-pointer text-center"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 5: KITCHEN DISPLAY SYSTEM DIRECT LINK */}
+        {showKitchenModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">🍳</span>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Kitchen Display Rail (KDS)</h3>
+                    <p className="text-[11px] text-slate-400">Permanent Station URL for Kitchen Tablet / TV</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowKitchenModal(false)}
+                  className="text-slate-400 hover:text-white cursor-pointer text-lg p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-300 leading-relaxed bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                💡 Open this link on your kitchen tablet or monitor. It stays logged into the Kitchen Rail display with live sound alerts, ticket timers, and mark-ready controls without requiring re-login.
+              </div>
+
+              {/* Direct Kitchen Link */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1.5">
+                <div className="text-[10px] uppercase font-mono text-slate-400 flex justify-between">
+                  <span>Kitchen Station Direct URL:</span>
+                  {copiedKitchenLink && <span className="text-emerald-400 font-bold">✓ Copied</span>}
+                </div>
+                <div className="text-xs font-mono text-amber-300 break-all bg-black/40 p-2 rounded border border-slate-800">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/login?resto=${restaurantId}&role=kitchen`
+                    : ""}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="space-y-2 pt-1">
+                <a
+                  href={(() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "";
+                    const kdsUrl = `${origin}/login?resto=${restaurantId}&role=kitchen`;
+                    const msg = `🍳 *${restaurantName} - Kitchen Display Link*\n\nOpen this link on the kitchen tablet or TV screen to view live orders and kitchen tickets:\n🔗 ${kdsUrl}`;
+                    return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  })()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                >
+                  <span>📲</span>
+                  <span>Share Kitchen Link on WhatsApp</span>
+                </a>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const origin = typeof window !== "undefined" ? window.location.origin : "";
+                      const kdsUrl = `${origin}/login?resto=${restaurantId}&role=kitchen`;
+                      navigator.clipboard.writeText(kdsUrl);
+                      setCopiedKitchenLink(true);
+                      setTimeout(() => setCopiedKitchenLink(false), 2500);
+                    }}
+                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer border border-slate-700 text-center"
+                  >
+                    {copiedKitchenLink ? "Copied!" : "📋 Copy Kitchen Link"}
+                  </button>
+
+                  <a
+                    href="/kitchen"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2 px-3 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold cursor-pointer text-center flex items-center justify-center gap-1.5"
+                  >
+                    <span>Open KDS</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         )}

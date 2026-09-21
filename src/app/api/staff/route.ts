@@ -73,6 +73,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true,
+    restaurantId: targetRestaurantId,
     restaurantName: restaurantRes.data?.name || "Order Desk",
     staff: staffWithPerms,
   });
@@ -180,7 +181,11 @@ export async function POST(request: Request) {
     displayRole
   );
 
-  return NextResponse.json({ ok: true, staff: { ...newMember, role: displayRole, permissions } }, { status: 201 });
+  return NextResponse.json({
+    ok: true,
+    restaurantId: targetRestaurantId,
+    staff: { ...newMember, role: displayRole, permissions },
+  }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {

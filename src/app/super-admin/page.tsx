@@ -103,6 +103,15 @@ export default function SuperAdminPage() {
 
   // Modals state
   const [showOnboardModal, setShowOnboardModal] = useState(false);
+  const [onboardSuccessModal, setOnboardSuccessModal] = useState<{
+    id: string;
+    name: string;
+    ownerName: string;
+    ownerEmail: string;
+    contactPhone?: string;
+    pin: string;
+  } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<RestaurantFleetItem | null>(null);
   const [resettingOwner, setResettingOwner] = useState<RestaurantFleetItem | null>(null);
   const [deletingRestaurant, setDeletingRestaurant] = useState<RestaurantFleetItem | null>(null);
@@ -449,6 +458,14 @@ export default function SuperAdminPage() {
         if (data.ok) {
           showToast(data.message || "Restaurant onboarded!");
           setShowOnboardModal(false);
+          setOnboardSuccessModal({
+            id: data.restaurantId || data.restaurant?.id,
+            name: data.restaurant?.name || newResto.name,
+            ownerName: data.restaurant?.ownerName || newResto.ownerName,
+            ownerEmail: data.restaurant?.ownerEmail || newResto.ownerEmail,
+            contactPhone: data.restaurant?.contactPhone || newResto.contactPhone,
+            pin: data.restaurant?.pin || newResto.pin,
+          });
           setNewResto({
             name: "",
             ownerName: "",
@@ -1050,9 +1067,29 @@ export default function SuperAdminPage() {
                           )}
                         </td>
 
-                        {/* Actions: Share Menu, Staff, Impersonate, Plan, Reset, Archive/Restore, Delete */}
+                        {/* Actions: Share Menu, WhatsApp, Staff, Impersonate, Plan, Reset, Archive/Restore, Delete */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* WhatsApp Direct Owner Link */}
+                            <a
+                              href={(() => {
+                                const origin = typeof window !== "undefined" ? window.location.origin : "";
+                                const loginUrl = `${origin}/login?resto=${r.id}&role=owner`;
+                                const cleanPhone = (r.contactPhone || "").replace(/\D/g, "");
+                                const msg = `👋 *OrderDesk Login - ${r.name}*\n\n🔗 *Dashboard Link*: ${loginUrl}\n👤 *Owner*: ${r.ownerName}\n\nOpen this link on your mobile or tablet to access your restaurant desk!`;
+                                return cleanPhone
+                                  ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
+                                  : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                              })()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
+                              title="Send Login Link to Owner via WhatsApp"
+                            >
+                              <i className="fa-brands fa-whatsapp text-emerald-400 text-xs" />
+                              <span>WhatsApp</span>
+                            </a>
+
                             {/* Share Customer Menu */}
                             <button
                               onClick={() => setShareMenuResto(r)}
@@ -1482,7 +1519,7 @@ export default function SuperAdminPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">Owner Full Name *</label>
                   <input
@@ -1502,6 +1539,19 @@ export default function SuperAdminPage() {
                     placeholder="owner@spiceroute.com"
                     value={newResto.ownerEmail}
                     onChange={(e) => setNewResto({ ...newResto, ownerEmail: e.target.value })}
+                    className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1 flex items-center gap-1">
+                    <span>Owner WhatsApp / Phone</span>
+                    <span className="text-emerald-400 font-bold">📲</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 9876543210"
+                    value={newResto.contactPhone}
+                    onChange={(e) => setNewResto({ ...newResto, contactPhone: e.target.value })}
                     className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white focus:outline-none"
                   />
                 </div>
@@ -1573,6 +1623,107 @@ export default function SuperAdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1.5: Onboard Success & WhatsApp Dispatch */}
+      {onboardSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#181410] border border-[#2E2721] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scale-up">
+            <div className="text-center space-y-2">
+              <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto text-emerald-400 text-2xl shadow-lg">
+                🎉
+              </div>
+              <h3 className="font-bold text-white text-lg">Restaurant Onboarded Successfully!</h3>
+              <p className="text-xs text-[#8C8275]">
+                {onboardSuccessModal.name} has been provisioned. Send credentials directly to the owner.
+              </p>
+            </div>
+
+            {/* Credentials Card */}
+            <div className="bg-[#12100E] border border-[#2D251F] rounded-xl p-4 space-y-3 font-mono text-xs">
+              <div className="flex justify-between items-center text-[#A89F91] border-b border-[#241E18] pb-2">
+                <span>Restaurant Name:</span>
+                <span className="text-white font-bold">{onboardSuccessModal.name}</span>
+              </div>
+              <div className="flex justify-between items-center text-[#A89F91] border-b border-[#241E18] pb-2">
+                <span>Owner:</span>
+                <span className="text-white font-bold">{onboardSuccessModal.ownerName}</span>
+              </div>
+              {onboardSuccessModal.contactPhone && (
+                <div className="flex justify-between items-center text-[#A89F91] border-b border-[#241E18] pb-2">
+                  <span>WhatsApp / Phone:</span>
+                  <span className="text-emerald-400 font-bold">{onboardSuccessModal.contactPhone}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-[#A89F91]">
+                <span>Owner PIN:</span>
+                <span className="text-amber-400 font-bold text-sm tracking-widest bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/60">
+                  {onboardSuccessModal.pin}
+                </span>
+              </div>
+            </div>
+
+            {/* Direct Login Link Preview */}
+            <div className="bg-[#12100E] border border-[#2D251F] rounded-xl p-3 space-y-1.5">
+              <div className="text-[10px] uppercase font-mono text-[#8C8275] flex items-center justify-between">
+                <span>Direct Magic Login Link (No Passwords Needed):</span>
+                {copiedLink && <span className="text-emerald-400 font-bold">✓ Copied!</span>}
+              </div>
+              <div className="text-xs text-[#D8D0C3] font-mono break-all bg-black/40 p-2 rounded border border-[#241E18]">
+                {typeof window !== "undefined"
+                  ? `${window.location.origin}/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`
+                  : `/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`}
+              </div>
+            </div>
+
+            {/* WhatsApp & Copy Action Buttons */}
+            <div className="space-y-2">
+              <a
+                href={(() => {
+                  const origin = typeof window !== "undefined" ? window.location.origin : "";
+                  const loginUrl = `${origin}/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`;
+                  const cleanPhone = (onboardSuccessModal.contactPhone || "").replace(/\D/g, "");
+                  const msg = `🎉 *Welcome to OrderDesk, ${onboardSuccessModal.name}!*\n\nYour restaurant management dashboard is ready:\n🔗 *Direct Login Link*: ${loginUrl}\n\n👤 *Owner*: ${onboardSuccessModal.ownerName}\n🔑 *Your Secret PIN*: ${onboardSuccessModal.pin}\n\nTap the link above to instantly access your restaurant desk, live tables, kitchen display, and digital menu.`;
+                  return cleanPhone
+                    ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
+                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+              >
+                <i className="fa-brands fa-whatsapp text-base" />
+                <span>Send Credentials on WhatsApp</span>
+              </a>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const origin = typeof window !== "undefined" ? window.location.origin : "";
+                    const loginUrl = `${origin}/login?resto=${onboardSuccessModal.id}&role=owner&pin=${onboardSuccessModal.pin}`;
+                    const text = `Restaurant: ${onboardSuccessModal.name}\nOwner PIN: ${onboardSuccessModal.pin}\nLogin URL: ${loginUrl}`;
+                    navigator.clipboard.writeText(text);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2500);
+                  }}
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  <i className="fa-solid fa-copy text-[11px]" />
+                  <span>{copiedLink ? "Copied!" : "Copy Link & PIN"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setOnboardSuccessModal(null)}
+                  className="py-2 px-3 bg-[#D96B27] hover:bg-[#E3752F] text-white rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -2269,16 +2420,35 @@ export default function SuperAdminPage() {
                           </td>
 
                           <td className="px-5 py-3 text-right">
-                            <button
-                              onClick={() => {
-                                setEditingStaffPin({ id: s.id, name: s.name });
-                                setNewStaffPinValue("");
-                              }}
-                              className="px-2 py-1 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded text-[11px] font-semibold transition-colors cursor-pointer"
-                              title="Reset 4-Digit PIN"
-                            >
-                              Reset PIN
-                            </button>
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* WhatsApp Invite for Staff */}
+                              <a
+                                href={(() => {
+                                  const origin = typeof window !== "undefined" ? window.location.origin : "";
+                                  const staffLoginUrl = `${origin}/login?resto=${managingStaffResto.id}&role=${s.role}&staff=${s.id}`;
+                                  const msg = `👋 *OrderDesk Shift Access*\n\nRestaurant: *${managingStaffResto.name}*\nStaff Name: *${s.name}*\nRole: *${s.role.toUpperCase()}*\nPIN: *${pinDisplay}*\n\n🔗 *Shift Login Link*: ${staffLoginUrl}`;
+                                  return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                                })()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                title="Send Shift Login via WhatsApp"
+                              >
+                                <i className="fa-brands fa-whatsapp text-emerald-400 text-[10px]" />
+                                <span>Share</span>
+                              </a>
+
+                              <button
+                                onClick={() => {
+                                  setEditingStaffPin({ id: s.id, name: s.name });
+                                  setNewStaffPinValue("");
+                                }}
+                                className="px-2 py-1 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded text-[11px] font-semibold transition-colors cursor-pointer"
+                                title="Reset 4-Digit PIN"
+                              >
+                                Reset PIN
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

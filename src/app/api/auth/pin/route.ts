@@ -6,35 +6,62 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getStaffPermissions } from "@/lib/platform/state";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const admin = createAdminClient();
+    const { searchParams } = new URL(request.url);
+    const restoQuery = searchParams.get("resto")?.trim();
 
-    // 1. Check if restaurant is specified in cookies
-    const cookieStore = await cookies();
-    const activeStaffCookie = cookieStore.get("od_active_staff")?.value;
-    let targetRestaurantId: string | null = null;
+    let restaurant: { id: string; name: string } | null = null;
 
-    if (activeStaffCookie) {
-      try {
-        const parsed = JSON.parse(activeStaffCookie);
-        targetRestaurantId = parsed.restaurant_id || null;
-      } catch {
-        // ignore
+    // 1. Direct match by ?resto= query param (ID or Name)
+    if (restoQuery) {
+      // Check if UUID
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(restoQuery);
+      if (isUuid) {
+        const { data } = await admin
+          .from("restaurants")
+          .select("id, name")
+          .eq("id", restoQuery)
+          .maybeSingle();
+        restaurant = data;
+      }
+      if (!restaurant) {
+        const { data } = await admin
+          .from("restaurants")
+          .select("id, name")
+          .ilike("name", restoQuery)
+          .maybeSingle();
+        restaurant = data;
       }
     }
 
-    let restaurant: { id: string; name: string } | null = null;
-    if (targetRestaurantId) {
-      const { data } = await admin
-        .from("restaurants")
-        .select("id, name")
-        .eq("id", targetRestaurantId)
-        .maybeSingle();
-      restaurant = data;
+    // 2. Check if restaurant is specified in cookies
+    if (!restaurant) {
+      const cookieStore = await cookies();
+      const activeStaffCookie = cookieStore.get("od_active_staff")?.value;
+      let targetRestaurantId: string | null = null;
+
+      if (activeStaffCookie) {
+        try {
+          const parsed = JSON.parse(activeStaffCookie);
+          targetRestaurantId = parsed.restaurant_id || null;
+        } catch {
+          // ignore
+        }
+      }
+
+      if (targetRestaurantId) {
+        const { data } = await admin
+          .from("restaurants")
+          .select("id, name")
+          .eq("id", targetRestaurantId)
+          .maybeSingle();
+        restaurant = data;
+      }
     }
 
-    // 2. If no cookie, resolve the restaurant that has active staff
+    // 3. If no cookie or param, resolve the restaurant that has active staff
     if (!restaurant) {
       const { data: staffWithResto } = await admin
         .from("staff_users")
@@ -51,7 +78,7 @@ export async function GET() {
       }
     }
 
-    // 3. Fallback to most recently created restaurant
+    // 4. Fallback to most recently created restaurant
     if (!restaurant) {
       const { data } = await admin
         .from("restaurants")
@@ -80,8 +107,12 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
+      restaurantId: restaurant.id,
       restaurantName: restaurant.name || "Order Desk",
-      staff: staff || [],
+      staff: (staff || []).map((s) => ({
+        ...s,
+        role: s.role === "staff" ? "waiter" : s.role,
+      })),
     });
   } catch (error) {
     console.error("Staff roster fetch error:", error);
@@ -101,18 +132,16 @@ export async function POST(request: NextRequest) {
     const rateCheck = checkRateLimit(rateLimitKey, 5, 5 * 60 * 1000);
 
     if (!rateCheck.allowed) {
-      const minutesRemaining = Math.max(1, Math.ceil(rateCheck.resetMs / 60000));
       return NextResponse.json(
-        {
-          message: `Too many failed PIN attempts. Station temporarily locked for ${minutesRemaining} minutes.`,
-        },
+        { message: "Too many incorrect attempts. Terminal locked for 5 minutes." },
         { status: 429 }
       );
     }
 
     const body = await request.json().catch(() => ({}));
-    const staffId = typeof body.staffId === "string" ? body.staffId.trim() : undefined;
-    const pin = String(body.pin || "").trim();
+    const staffId = body.staffId?.trim();
+    const pin = body.pin?.trim();
+    const explicitRestoId = body.restaurantId?.trim();
 
     if (!pin || pin.length !== 4) {
       return NextResponse.json({ message: "4-digit PIN is required" }, { status: 400 });
@@ -146,15 +175,17 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Must scope to active restaurant that has staff
-      let targetRestoId: string | null = null;
-      const cookieStore = await cookies();
-      const activeStaffCookie = cookieStore.get("od_active_staff")?.value;
-      if (activeStaffCookie) {
-        try {
-          const parsed = JSON.parse(activeStaffCookie);
-          targetRestoId = parsed.restaurant_id || null;
-        } catch {
-          // ignore
+      let targetRestoId: string | null = explicitRestoId || null;
+      if (!targetRestoId) {
+        const cookieStore = await cookies();
+        const activeStaffCookie = cookieStore.get("od_active_staff")?.value;
+        if (activeStaffCookie) {
+          try {
+            const parsed = JSON.parse(activeStaffCookie);
+            targetRestoId = parsed.restaurant_id || null;
+          } catch {
+            // ignore
+          }
         }
       }
 

@@ -143,6 +143,7 @@ export async function POST(request: Request) {
     const name = body.name?.trim();
     const ownerName = body.ownerName?.trim();
     const ownerEmail = body.ownerEmail?.trim().toLowerCase();
+    const contactPhone = body.contactPhone?.trim() || null;
     const gstin = body.gstin?.trim() || null;
     const pin = body.pin?.trim() || "1234";
     const plan = body.plan || "trial";
@@ -171,11 +172,12 @@ export async function POST(request: Request) {
       .insert({
         name,
         owner_email: ownerEmail,
+        contact_phone: contactPhone,
         gstin,
         subscription_plan: plan,
         subscription_status: "active",
       })
-      .select("id, name")
+      .select("id, name, contact_phone")
       .single();
 
     if (restoError || !restaurant) {
@@ -301,6 +303,15 @@ export async function POST(request: Request) {
       ok: true,
       message: `Restaurant "${restaurant.name}" successfully onboarded with ${tableCount} tables`,
       restaurantId: restaurant.id,
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        ownerName,
+        ownerEmail,
+        contactPhone,
+        pin,
+        tableCount,
+      },
     });
   } catch (error) {
     console.error("Super admin onboarding error:", error);

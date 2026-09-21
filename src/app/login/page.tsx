@@ -14,6 +14,7 @@ export default function TerminalLoginPage() {
   const router = useRouter();
 
   // Terminal state
+  const [restaurantId, setRestaurantId] = useState("");
   const [restaurantName, setRestaurantName] = useState("Order Desk");
   const [staffList, setStaffList] = useState<StaffProfile[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<StaffProfile | null>(null);
@@ -30,27 +31,8 @@ export default function TerminalLoginPage() {
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [isRecoverySubmitting, setIsRecoverySubmitting] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    fetch("/api/auth/pin")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!isMounted || !data) return;
-        if (data.restaurantName) setRestaurantName(data.restaurantName);
-        if (data.staff?.length > 0) {
-          setStaffList(data.staff);
-          setSelectedStaff(data.staff[0]);
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const handlePinSubmit = useCallback(
-    async (pinToVerify: string) => {
+    async (pinToVerify: string, overrideStaffId?: string, overrideRestoId?: string) => {
       if (pinToVerify.length !== 4 || isSubmitting) return;
 
       setIsSubmitting(true);
@@ -61,7 +43,8 @@ export default function TerminalLoginPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            staffId: selectedStaff?.id,
+            staffId: overrideStaffId || selectedStaff?.id,
+            restaurantId: overrideRestoId || restaurantId,
             pin: pinToVerify,
           }),
         });
@@ -84,8 +67,53 @@ export default function TerminalLoginPage() {
         setIsSubmitting(false);
       }
     },
-    [isSubmitting, selectedStaff, router]
+    [isSubmitting, selectedStaff, restaurantId, router]
   );
+
+  useEffect(() => {
+    let isMounted = true;
+    const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    const restoParam = searchParams.get("resto") || "";
+    const roleParam = searchParams.get("role") || "";
+    const staffParam = searchParams.get("staff") || "";
+    const pinParam = searchParams.get("pin") || "";
+
+    const apiUrl = restoParam ? `/api/auth/pin?resto=${encodeURIComponent(restoParam)}` : "/api/auth/pin";
+
+    fetch(apiUrl)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data) return;
+        if (data.restaurantId) setRestaurantId(data.restaurantId);
+        if (data.restaurantName) setRestaurantName(data.restaurantName);
+        if (data.staff?.length > 0) {
+          setStaffList(data.staff);
+          
+          let targetStaff = data.staff[0];
+          if (staffParam) {
+            const found = data.staff.find((s: StaffProfile) => s.id === staffParam);
+            if (found) targetStaff = found;
+          } else if (roleParam) {
+            const found = data.staff.find((s: StaffProfile) => s.role.toLowerCase() === roleParam.toLowerCase());
+            if (found) targetStaff = found;
+          }
+          setSelectedStaff(targetStaff);
+
+          // 1-Tap Magic auto-login if valid 4-digit pin in query
+          if (pinParam && pinParam.length === 4) {
+            setPin(pinParam);
+            setTimeout(() => {
+              handlePinSubmit(pinParam, targetStaff?.id, data.restaurantId);
+            }, 200);
+          }
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [handlePinSubmit]);
 
   function handleKeyPress(digit: string) {
     if (isSubmitting || pin.length >= 4) return;
@@ -276,7 +304,9 @@ export default function TerminalLoginPage() {
                         </span>
                         <div className="truncate">
                           <div className="text-xs font-bold leading-tight truncate">{member.name}</div>
-                          <div className="text-[10px] opacity-75 capitalize leading-tight">{member.role}</div>
+                          <div className="text-[10px] opacity-80 font-medium leading-tight">
+                            {member.role === "owner" ? "👑 Owner" : member.role === "kitchen" ? "🍳 Kitchen" : "🛎️ Waiter"}
+                          </div>
                         </div>
                       </button>
                     );
