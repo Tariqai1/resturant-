@@ -57,6 +57,93 @@ export async function GET() {
       throw error;
     }
 
+    // Query recent orders for Day-wise analytics & Today stats (last 7 days)
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const { data: recentOrdersData } = await admin
+      .from("orders")
+      .select(`
+        id,
+        status,
+        opened_at,
+        restaurant_tables (table_number),
+        order_items (id, qty, item_status, menu_items (name, is_veg))
+      `)
+      .eq("restaurant_id", staffContext.restaurantId)
+      .gte("opened_at", sevenDaysAgo.toISOString())
+      .order("opened_at", { ascending: false });
+
+    const recentOrders = recentOrdersData || [];
+
+    // Calculate Today stats
+    const todayOrders = recentOrders.filter((o) => new Date(o.opened_at) >= todayStart);
+    const todayTotal = todayOrders.length;
+    const todayCompleted = todayOrders.filter((o) => o.status !== "open").length;
+    const todayActive = (orders || []).length;
+    let todayDishes = 0;
+    todayOrders.forEach((o) => {
+      type RawItem = { qty: number; item_status: string };
+      const items = (o.order_items as unknown as RawItem[]) || [];
+      items.forEach((it) => {
+        if (it.item_status === "served") {
+          todayDishes += it.qty || 1;
+        }
+      });
+    });
+
+    // Group by Day (last 7 days)
+    const dayWiseMap: {
+      [key: string]: {
+        date: string;
+        label: string;
+        totalOrders: number;
+        completedOrders: number;
+        totalDishes: number;
+      };
+    } = {};
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      const isToday = i === 0;
+      const isYesterday = i === 1;
+      const label = isToday
+        ? "Today"
+        : isYesterday
+        ? "Yesterday"
+        : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      dayWiseMap[dateStr] = {
+        date: dateStr,
+        label,
+        totalOrders: 0,
+        completedOrders: 0,
+        totalDishes: 0,
+      };
+    }
+
+    recentOrders.forEach((o) => {
+      const dStr = new Date(o.opened_at).toISOString().split("T")[0];
+      if (dayWiseMap[dStr]) {
+        dayWiseMap[dStr].totalOrders += 1;
+        if (o.status !== "open") {
+          dayWiseMap[dStr].completedOrders += 1;
+        }
+        type RawItem = { qty: number };
+        const items = (o.order_items as unknown as RawItem[]) || [];
+        items.forEach((it) => {
+          dayWiseMap[dStr].totalDishes += it.qty || 1;
+        });
+      }
+    });
+
+    const dayWiseStats = Object.values(dayWiseMap);
+
     return NextResponse.json({
       ok: true,
       restaurantName: staffContext.restaurantName,
@@ -79,6 +166,13 @@ export async function GET() {
           prepEstimate: getOrderPrepTime(ord.id),
         };
       }),
+      todayStats: {
+        totalOrders: todayTotal,
+        activeOrders: todayActive,
+        completedOrders: todayCompleted,
+        dishesCooked: todayDishes,
+      },
+      dayWiseStats,
     });
   } catch (error) {
     console.error("Kitchen fetch error:", error);
