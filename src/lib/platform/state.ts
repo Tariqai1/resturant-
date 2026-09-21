@@ -110,6 +110,7 @@ export type PlatformState = {
   restaurantFeatures?: Record<string, RestaurantFeatures>;
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
   restaurantPhones?: Record<string, string>;
+  dishSpecialTags?: Record<string, string>;
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -450,4 +451,25 @@ export function setRestaurantPhone(restaurantId: string, phone: string): string 
   savePlatformState(state);
   return phone;
 }
+
+export function getDishSpecialTag(dishId: string): string | null {
+  if (!dishId) return null;
+  const state = getPlatformState();
+  return state.dishSpecialTags?.[dishId] || null;
+}
+
+export function setDishSpecialTag(dishId: string, tag: string | null): void {
+  if (!dishId) return;
+  const state = getPlatformState();
+  if (!state.dishSpecialTags) {
+    state.dishSpecialTags = {};
+  }
+  if (tag && tag.trim()) {
+    state.dishSpecialTags[dishId] = tag.trim();
+  } else {
+    delete state.dishSpecialTags[dishId];
+  }
+  savePlatformState(state);
+}
+
 
