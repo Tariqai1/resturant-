@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, use } from "react";
+import FoodChefLoader from "@/components/FoodChefLoader";
 
 type MenuItem = {
   id: string;
@@ -606,15 +607,14 @@ export default function CustomerTableOrderingPage({
   if (isLoading) {
     return (
       <div data-theme={theme} className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: "var(--paper)" }}>
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center animate-spin" style={{ border: "3px solid var(--hairline)", borderTopColor: "var(--brand-primary)" }} />
-          <div className="font-heading text-2xl font-bold tracking-wide" style={{ color: "var(--ink)" }}>
-            {restaurantName}
-          </div>
-          <p className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>
-            Connecting to Table {tableNumber || "station"}...
-          </p>
-        </div>
+        <FoodChefLoader
+          variant="light"
+          restaurantName={restaurantName}
+          tableNumber={tableNumber}
+          message="Connecting to your table station..."
+          subMessage="Chef is preparing your instant digital menu..."
+          size="lg"
+        />
       </div>
     );
   }
@@ -644,28 +644,29 @@ export default function CustomerTableOrderingPage({
     );
   }
 
-  // STEP 1: POST-SCAN WELCOME
+  // STEP 1: POST-SCAN WELCOME (5-Star Luxury No-Scroll Viewport)
   if (!hasDismissedWelcome) {
     return (
       <main
         data-theme={theme}
-        className="min-h-screen max-w-md mx-auto flex flex-col justify-between p-6 sm:p-8"
+        className="h-[100dvh] max-h-[100dvh] w-full max-w-md mx-auto flex flex-col justify-between p-4 sm:p-5 overflow-hidden select-none"
         style={{ backgroundColor: "var(--paper)", color: "var(--ink)" }}
       >
-        <div className="pt-8 space-y-6">
+        {/* Top Header Section */}
+        <div className="flex-shrink-0 space-y-1.5 pt-1">
           <div className="flex items-center justify-between">
             <div
-              className="text-[11px] font-bold px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 shadow-sm"
+              className="text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-xs uppercase tracking-wider"
               style={{
                 backgroundColor: "var(--brand-primary)",
                 color: "var(--rust-text)",
               }}
             >
               <span>✦</span>
-              <span>Order Desk Digital Menu</span>
+              <span>VIP Dine-In Service</span>
             </div>
 
-            <div className="flex items-center gap-1 bg-white/70 backdrop-blur px-2 py-1 rounded-full border" style={{ borderColor: "var(--hairline)" }}>
+            <div className="flex items-center gap-1 bg-white/80 backdrop-blur px-2 py-0.5 rounded-full border shadow-xs" style={{ borderColor: "var(--hairline)" }}>
               <button
                 type="button"
                 onClick={() => {
@@ -673,7 +674,7 @@ export default function CustomerTableOrderingPage({
                   setTheme("amber");
                 }}
                 title="Amber Gold Theme"
-                className={`w-4 h-4 rounded-full border ${theme === "amber" ? "ring-2 ring-amber-500" : "opacity-60"}`}
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "amber" ? "ring-2 ring-amber-500 scale-110" : "opacity-50"}`}
                 style={{ backgroundColor: "#FFBE0B", borderColor: "#2A2312" }}
               />
               <button
@@ -683,84 +684,118 @@ export default function CustomerTableOrderingPage({
                   setTheme("crimson");
                 }}
                 title="Velvet Crimson Theme"
-                className={`w-4 h-4 rounded-full border ${theme === "crimson" ? "ring-2 ring-rose-700" : "opacity-60"}`}
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "crimson" ? "ring-2 ring-rose-700 scale-110" : "opacity-50"}`}
                 style={{ backgroundColor: "#741A2F", borderColor: "#FFC6A8" }}
               />
             </div>
           </div>
 
-          <div className="space-y-1">
-            <h1 className="font-heading text-4xl font-extrabold tracking-tight" style={{ color: "var(--ink)" }}>
+          <div>
+            <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight line-clamp-1 leading-tight" style={{ color: "var(--ink)" }}>
               {restaurantName}
             </h1>
-            <p className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>
-              Dine-in Instant Table Experience
-            </p>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold mt-0.5" style={{ color: "var(--ink-soft)" }}>
+              <span className="text-amber-500">★★★★★</span>
+              <span>Instant Contactless Table Experience</span>
+            </div>
           </div>
+        </div>
 
-          {/* Table Card */}
-          <div
-            className="p-6 rounded-2xl border-2 shadow-md relative overflow-hidden"
-            style={{
-              backgroundColor: "var(--paper-dim)",
-              borderColor: "var(--hairline)",
-            }}
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: "var(--ink-soft)" }}>
-                  Confirmed Table
-                </span>
-                <div className="font-heading text-6xl font-extrabold mt-1" style={{ color: "var(--ink)" }}>
-                  {tableNumber}
-                </div>
+        {/* Centerpiece: Luxury Confirmed Table Card */}
+        <div
+          className="my-auto p-4 sm:p-5 rounded-2xl border shadow-md relative overflow-hidden flex flex-col justify-between"
+          style={{
+            backgroundColor: "var(--card-bg, #FFFFFF)",
+            borderColor: "var(--hairline)",
+          }}
+        >
+          {/* Subtle Ambient Radial Glow */}
+          <div className="absolute -top-12 -right-12 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="flex justify-between items-start relative z-10">
+            <div>
+              <div className="text-[10px] font-black tracking-widest uppercase flex items-center gap-1.5" style={{ color: "var(--ink-soft)" }}>
+                <span>CONFIRMED TABLE</span>
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               </div>
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner" style={{ backgroundColor: "var(--brand-primary)", color: "var(--rust-text)" }}>
-                🛎️
+              <div className="font-heading text-5xl sm:text-6xl font-black tracking-tight mt-1 leading-none" style={{ color: "var(--ink)" }}>
+                {tableNumber || "T--"}
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t flex items-center gap-2 text-xs font-semibold" style={{ borderColor: "var(--hairline)", color: "var(--sage)" }}>
+            {/* Luxury Medallion Icon */}
+            <div
+              className="w-13 h-13 rounded-2xl flex items-center justify-center text-2xl shadow-sm border"
+              style={{
+                backgroundColor: "var(--paper-dim)",
+                borderColor: "var(--hairline)",
+              }}
+            >
+              🛎️
+            </div>
+          </div>
+
+          <div
+            className="mt-4 pt-3 border-t flex items-center justify-between text-[11px] font-bold"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <div className="flex items-center gap-2" style={{ color: "var(--sage)" }}>
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600" />
               </span>
-              <span>Direct Kitchen Live Connection Active</span>
+              <span>Kitchen Live Connection Active</span>
             </div>
-          </div>
-
-          <div className="space-y-2.5 pt-1">
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border" style={{ borderColor: "var(--hairline)" }}>
-              <span className="text-lg">⚡</span>
-              <div className="text-xs">
-                <strong className="block font-bold" style={{ color: "var(--ink)" }}>Instant 0-Wait Menu</strong>
-                <span style={{ color: "var(--ink-soft)" }}>Auto-cached for super-fast loading on all phones.</span>
-              </div>
-            </div>
-
-            {features.prepTimeTracker && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border" style={{ borderColor: "var(--hairline)" }}>
-                <span className="text-lg">⏳</span>
-                <div className="text-xs">
-                  <strong className="block font-bold" style={{ color: "var(--ink)" }}>Live Cooking Countdown</strong>
-                  <span style={{ color: "var(--ink-soft)" }}>Watch your kitchen preparation time tick live.</span>
-                </div>
-              </div>
-            )}
-
-            {features.callWaiter && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-white/60 border" style={{ borderColor: "var(--hairline)" }}>
-                <span className="text-lg">🛎️</span>
-                <div className="text-xs">
-                  <strong className="block font-bold" style={{ color: "var(--ink)" }}>1-Tap Staff Buzzer</strong>
-                  <span style={{ color: "var(--ink-soft)" }}>Ring waiter for water, cutlery, or bill anytime.</span>
-                </div>
-              </div>
-            )}
+            <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+              0-LAG SYNC
+            </span>
           </div>
         </div>
 
-        <div className="pb-8 pt-6">
+        {/* Compact 3-Column Luxury Feature Badges (Zero Scroll Footprint) */}
+        <div className="grid grid-cols-3 gap-2 my-auto">
+          <div
+            className="p-2.5 rounded-xl border bg-white/70 backdrop-blur text-center flex flex-col items-center justify-center shadow-xs"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <span className="text-xl mb-0.5">⚡</span>
+            <span className="text-[11px] font-bold leading-tight" style={{ color: "var(--ink)" }}>
+              0-Wait Menu
+            </span>
+            <span className="text-[9px] font-medium" style={{ color: "var(--ink-soft)" }}>
+              Instant Cache
+            </span>
+          </div>
+
+          <div
+            className="p-2.5 rounded-xl border bg-white/70 backdrop-blur text-center flex flex-col items-center justify-center shadow-xs"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <span className="text-xl mb-0.5">⏳</span>
+            <span className="text-[11px] font-bold leading-tight" style={{ color: "var(--ink)" }}>
+              Live Cook
+            </span>
+            <span className="text-[9px] font-medium" style={{ color: "var(--ink-soft)" }}>
+              Prep Timer
+            </span>
+          </div>
+
+          <div
+            className="p-2.5 rounded-xl border bg-white/70 backdrop-blur text-center flex flex-col items-center justify-center shadow-xs"
+            style={{ borderColor: "var(--hairline)" }}
+          >
+            <span className="text-xl mb-0.5">🛎️</span>
+            <span className="text-[11px] font-bold leading-tight" style={{ color: "var(--ink)" }}>
+              Staff Bell
+            </span>
+            <span className="text-[9px] font-medium" style={{ color: "var(--ink-soft)" }}>
+              1-Tap Buzzer
+            </span>
+          </div>
+        </div>
+
+        {/* Bottom CTA Area - Always in View with 0 Scroll */}
+        <div className="flex-shrink-0 pt-2 pb-1 space-y-1.5">
           <button
             type="button"
             onClick={() => {
@@ -770,15 +805,18 @@ export default function CustomerTableOrderingPage({
                 sessionStorage.setItem(`od_welcomed_${token}`, "true");
               }
             }}
-            className="w-full h-14 rounded-xl text-base font-extrabold shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full h-13 sm:h-14 rounded-xl text-base font-black shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer group"
             style={{
               backgroundColor: "var(--rust)",
               color: "var(--rust-text)",
             }}
           >
-            <span>Explore Menu & Order</span>
-            <span>→</span>
+            <span className="tracking-wide">Explore Menu & Order</span>
+            <span className="text-lg transition-transform group-hover:translate-x-1">→</span>
           </button>
+          <p className="text-center text-[10px] font-medium" style={{ color: "var(--ink-soft)" }}>
+            ✦ No app download needed • Instant live kitchen order
+          </p>
         </div>
       </main>
     );
