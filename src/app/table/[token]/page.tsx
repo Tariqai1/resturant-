@@ -1580,6 +1580,50 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
+      {/* Craving More / Add Extra Dishes Anytime Banner */}
+      {activeOrder && activeOrder.order_items.length > 0 && (
+        <div
+          className="mx-4 mt-2.5 p-3 rounded-2xl border shadow-xs flex items-center justify-between gap-3 select-none transition-all"
+          style={{
+            backgroundColor: "var(--card-bg, #FFFFFF)",
+            borderColor: "rgba(245, 158, 11, 0.4)",
+            boxShadow: "0 2px 8px -2px rgba(245, 158, 11, 0.15)",
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 shadow-xs"
+              style={{ backgroundColor: "var(--brand-primary-soft, #FFF8E7)" }}
+            >
+              🍲
+            </div>
+            <div className="min-w-0">
+              <strong className="text-xs font-black block leading-tight truncate" style={{ color: "var(--ink)" }}>
+                Want to add more dishes?
+              </strong>
+              <span className="text-[10px] font-medium text-stone-500 leading-snug block">
+                Extra naans, drinks & desserts will be added directly to Table {tableNumber}&apos;s bill.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic(8);
+              const el = document.getElementById("menu-catalog-start");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="px-3 py-1.5 text-[11px] font-black rounded-lg shadow-sm cursor-pointer active:scale-95 transition-all shrink-0 uppercase tracking-wider"
+            style={{
+              backgroundColor: "var(--rust)",
+              color: "var(--rust-text)",
+            }}
+          >
+            + Add
+          </button>
+        </div>
+      )}
+
       {/* Success Notification */}
       {orderSuccessMsg && (
         <div
@@ -1605,7 +1649,7 @@ export default function CustomerTableOrderingPage({
       )}
 
       {/* Search Bar with Misspelling Tolerance & Dietary Filter Pills */}
-      <div className="p-4 pb-2 space-y-2.5">
+      <div id="menu-catalog-start" className="p-4 pb-2 space-y-2.5">
         <div className="relative">
           <input
             type="text"
