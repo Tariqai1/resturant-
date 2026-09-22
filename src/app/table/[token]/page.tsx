@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, use } from "react";
 import FoodChefLoader from "@/components/FoodChefLoader";
+import ScratchCardModal from "@/components/table/ScratchCardModal";
+import { RestaurantOfferConfig, DEFAULT_OFFER_CONFIG } from "@/lib/types/offers";
 
 type MenuItem = {
   id: string;
@@ -56,6 +58,7 @@ type RestaurantFeatures = {
   dishNotes: boolean;
   smartUpsell: boolean;
   feedbackReview: boolean;
+  loyaltyOffers?: boolean;
 };
 
 function triggerHaptic(ms = 12) {
@@ -195,7 +198,12 @@ export default function CustomerTableOrderingPage({
     dishNotes: true,
     smartUpsell: true,
     feedbackReview: true,
+    loyaltyOffers: true,
   });
+
+  // Dynamic Restaurant Offers & Retention Config
+  const [offerConfig, setOfferConfig] = useState<RestaurantOfferConfig>(DEFAULT_OFFER_CONFIG);
+  const [isScratchModalOpen, setIsScratchModalOpen] = useState(false);
 
   // Flow State
   const [hasDismissedWelcome, setHasDismissedWelcome] = useState<boolean>(() => {
@@ -207,7 +215,7 @@ export default function CustomerTableOrderingPage({
 
   // Fast Dietary & Category Filters
   const [selectedCat, setSelectedCat] = useState<string>("all");
-  const [dietFilter, setDietFilter] = useState<"all" | "veg" | "nonveg" | "bestseller">("all");
+  const [dietFilter, setDietFilter] = useState<"all" | "veg" | "nonveg" | "bestseller" | "under_199" | "spicy">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedNotes, setExpandedNotes] = useState<{ [id: string]: boolean }>({});
 
@@ -275,6 +283,7 @@ export default function CustomerTableOrderingPage({
           if (parsed.items?.length) setItems(parsed.items);
           if (parsed.theme) setTheme(parsed.theme);
           if (parsed.features) setFeatures(parsed.features);
+          if (parsed.offerConfig) setOfferConfig(parsed.offerConfig);
           setIsLoading(false); // 0.05s instant render!
         }
       } catch {
@@ -297,6 +306,7 @@ export default function CustomerTableOrderingPage({
       if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
       if (data.theme) setTheme(data.theme);
       if (data.features) setFeatures(data.features);
+      if (data.offerConfig) setOfferConfig(data.offerConfig);
 
       // Persist in SWR LocalStorage Cache
       try {
@@ -325,6 +335,7 @@ export default function CustomerTableOrderingPage({
         if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
         if (data.theme) setTheme(data.theme);
         if (data.features) setFeatures(data.features);
+        if (data.offerConfig) setOfferConfig(data.offerConfig);
         try {
           localStorage.setItem(`od_cache_${token}`, JSON.stringify(data));
         } catch {
@@ -439,10 +450,18 @@ export default function CustomerTableOrderingPage({
     return sum + (item ? Number(item.price) * val.qty : 0);
   }, 0);
 
-  // Indian GST 5%: 2.5% CGST + 2.5% SGST
-  const cgst = Math.round(subtotalCart * 0.025 * 100) / 100;
-  const sgst = Math.round(subtotalCart * 0.025 * 100) / 100;
-  const grandTotal = Math.round(subtotalCart + cgst + sgst);
+  // Dynamic Table Offer Discount calculation
+  const isOfferActive = features.loyaltyOffers !== false && offerConfig.active;
+  const discountApplicable = isOfferActive && subtotalCart >= offerConfig.minOrderValue;
+  const discountAmount = discountApplicable
+    ? Math.round(subtotalCart * (offerConfig.discountPercent / 100))
+    : 0;
+  const discountedSubtotal = Math.max(0, subtotalCart - discountAmount);
+
+  // Indian GST 5%: 2.5% CGST + 2.5% SGST on discounted subtotal
+  const cgst = Math.round(discountedSubtotal * 0.025 * 100) / 100;
+  const sgst = Math.round(discountedSubtotal * 0.025 * 100) / 100;
+  const grandTotal = Math.round(discountedSubtotal + cgst + sgst);
 
   // Active Order / Bill Calculation for UPI Payment
   const activeOrderSubtotal = (activeOrder?.order_items || []).reduce(
@@ -578,6 +597,8 @@ export default function CustomerTableOrderingPage({
     if (dietFilter === "veg" && !item.is_veg) return false;
     if (dietFilter === "nonveg" && item.is_veg) return false;
     if (dietFilter === "bestseller" && !item.is_bestseller) return false;
+    if (dietFilter === "under_199" && Number(item.price) > 199) return false;
+    if (dietFilter === "spicy" && getSpiciness(item.name, item.description) !== "spicy") return false;
     if (selectedCat !== "all" && item.category_id !== selectedCat) return false;
     return matchesSearch(searchQuery, item.name, item.description);
   });
@@ -1459,36 +1480,93 @@ export default function CustomerTableOrderingPage({
                 </div>
               )}
 
-              {/* 3-Stage Progress Indicator */}
-              <div className="grid grid-cols-3 gap-2 py-1 text-center text-[10px] font-bold">
-                <div
-                  className="py-1.5 rounded-lg shadow-sm"
-                  style={{
-                    backgroundColor: "var(--rust)",
-                    color: "var(--rust-text)",
-                  }}
-                >
-                  1. Placed
-                </div>
-                <div
-                  className="py-1.5 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: activeStage === "preparing" || activeStage === "served" ? "var(--ink-blue)" : "var(--hairline)",
-                    color: activeStage === "preparing" || activeStage === "served" ? "#FFFFFF" : "var(--ink-soft)",
-                  }}
-                >
-                  2. Cooking {activeStage === "preparing" && "♨"}
-                </div>
-                <div
-                  className="py-1.5 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: activeStage === "served" ? "var(--sage)" : "var(--hairline)",
-                    color: activeStage === "served" ? "#FFFFFF" : "var(--ink-soft)",
-                  }}
-                >
-                  3. Served
+              {/* Pro Visual 3-Stage Progress Stepper */}
+              <div className="py-2.5 px-2 bg-white/70 rounded-xl border border-stone-200/80 shadow-xs">
+                <div className="relative flex items-center justify-between">
+                  {/* Connecting Background Line */}
+                  <div className="absolute left-6 right-6 top-4 h-1 bg-stone-200 -z-0" />
+                  {/* Connecting Active Progress Line */}
+                  <div
+                    className="absolute left-6 top-4 h-1 bg-emerald-500 transition-all duration-500 -z-0"
+                    style={{
+                      width: activeStage === "served" ? "calc(100% - 3rem)" : activeStage === "preparing" ? "50%" : "0%",
+                    }}
+                  />
+
+                  {/* Step 1: Placed */}
+                  <div className="flex flex-col items-center gap-1 z-10">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm ring-4 ring-emerald-100">
+                      ✓
+                    </div>
+                    <span className="text-[10px] font-extrabold text-stone-800">1. Placed</span>
+                  </div>
+
+                  {/* Step 2: Cooking */}
+                  <div className="flex flex-col items-center gap-1 z-10">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm transition-all ${
+                        activeStage === "preparing" || activeStage === "served"
+                          ? "bg-amber-500 text-stone-900 ring-4 ring-amber-100"
+                          : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                      }`}
+                    >
+                      👨‍🍳
+                    </div>
+                    <span
+                      className={`text-[10px] font-extrabold ${
+                        activeStage === "preparing" ? "text-amber-700 animate-pulse font-black" : "text-stone-600"
+                      }`}
+                    >
+                      2. Cooking
+                    </span>
+                  </div>
+
+                  {/* Step 3: Served */}
+                  <div className="flex flex-col items-center gap-1 z-10">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm transition-all ${
+                        activeStage === "served"
+                          ? "bg-emerald-600 text-white ring-4 ring-emerald-100 animate-bounce"
+                          : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                      }`}
+                    >
+                      🍽️
+                    </div>
+                    <span
+                      className={`text-[10px] font-extrabold ${
+                        activeStage === "served" ? "text-emerald-700 font-black" : "text-stone-400"
+                      }`}
+                    >
+                      3. Served
+                    </span>
+                  </div>
                 </div>
               </div>
+
+              {/* Mystery Scratch Reward Card prompt when food is served */}
+              {activeStage === "served" && features.loyaltyOffers !== false && (
+                <div
+                  onClick={() => {
+                    triggerHaptic(18);
+                    setIsScratchModalOpen(true);
+                  }}
+                  className="p-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 border border-amber-500 text-stone-900 shadow-md cursor-pointer active:scale-98 transition-transform flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl animate-bounce">🎁</span>
+                    <div className="text-left">
+                      <div className="text-xs font-black leading-tight">Scratch Mystery Voucher!</div>
+                      <div className="text-[10px] font-medium text-amber-950">
+                        {offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit"}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-stone-900 text-amber-300 shadow-xs flex items-center gap-1">
+                    <span>Scratch</span>
+                    <span>➔</span>
+                  </span>
+                </div>
+              )}
 
               {/* 1-Tap Re-order / Repeat Items List */}
               <div className="pt-2 border-t border-dashed space-y-1.5" style={{ borderColor: "var(--hairline)" }}>
@@ -1648,6 +1726,47 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
+      {/* Dynamic Restaurant Offer & Scratch Reward Banner */}
+      {features.loyaltyOffers !== false && offerConfig.active && (
+        <div className="mx-4 mt-2 p-3 rounded-2xl border shadow-sm select-none relative overflow-hidden bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border-amber-300">
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xl shrink-0 animate-pulse">🔥</span>
+              <div className="min-w-0">
+                <div className="text-xs font-black text-amber-950 truncate flex items-center gap-1.5">
+                  <span>{offerConfig.bannerText}</span>
+                </div>
+                <div className="text-[10px] text-amber-800 font-medium leading-tight">
+                  {subtotalCart > 0 && subtotalCart < offerConfig.minOrderValue ? (
+                    <span>
+                      Add <strong>₹{offerConfig.minOrderValue - subtotalCart}</strong> more to unlock FLAT {offerConfig.discountPercent}% OFF!
+                    </span>
+                  ) : subtotalCart >= offerConfig.minOrderValue ? (
+                    <span className="text-emerald-800 font-bold">
+                      🎉 Offer Unlocked! You are saving ₹{discountAmount} on this order
+                    </span>
+                  ) : (
+                    <span>Valid on all QR table orders above ₹{offerConfig.minOrderValue}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(12);
+                setIsScratchModalOpen(true);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-900 font-extrabold text-[11px] shadow-xs active:scale-95 transition-transform flex items-center gap-1 shrink-0 cursor-pointer"
+            >
+              <span>🎁</span>
+              <span>Reward</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search Bar with Misspelling Tolerance & Dietary Filter Pills */}
       <div id="menu-catalog-start" className="p-4 pb-2 space-y-2.5">
         <div className="relative">
@@ -1678,7 +1797,7 @@ export default function CustomerTableOrderingPage({
           )}
         </div>
 
-        {/* 4 Fast Dietary Filter Buttons */}
+        {/* 5 Fast Dietary & Quick Filter Buttons */}
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs font-bold">
           <button
             type="button"
@@ -1686,8 +1805,10 @@ export default function CustomerTableOrderingPage({
               triggerHaptic(8);
               setDietFilter(dietFilter === "veg" ? "all" : "veg");
             }}
-            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs ${
-              dietFilter === "veg" ? "bg-emerald-100 text-emerald-800 border-emerald-500 ring-1 ring-emerald-500" : "bg-white text-stone-700 border-stone-200"
+            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs shrink-0 ${
+              dietFilter === "veg"
+                ? "bg-emerald-100 text-emerald-800 border-emerald-500 ring-1 ring-emerald-500"
+                : "bg-white text-stone-700 border-stone-200"
             }`}
           >
             <span className="veg-indicator" />
@@ -1700,8 +1821,10 @@ export default function CustomerTableOrderingPage({
               triggerHaptic(8);
               setDietFilter(dietFilter === "nonveg" ? "all" : "nonveg");
             }}
-            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs ${
-              dietFilter === "nonveg" ? "bg-red-100 text-red-800 border-red-500 ring-1 ring-red-500" : "bg-white text-stone-700 border-stone-200"
+            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs shrink-0 ${
+              dietFilter === "nonveg"
+                ? "bg-red-100 text-red-800 border-red-500 ring-1 ring-red-500"
+                : "bg-white text-stone-700 border-stone-200"
             }`}
           >
             <span className="nonveg-indicator" />
@@ -1714,12 +1837,46 @@ export default function CustomerTableOrderingPage({
               triggerHaptic(8);
               setDietFilter(dietFilter === "bestseller" ? "all" : "bestseller");
             }}
-            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs ${
-              dietFilter === "bestseller" ? "bg-amber-100 text-amber-900 border-amber-500 ring-1 ring-amber-500" : "bg-white text-stone-700 border-stone-200"
+            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs shrink-0 ${
+              dietFilter === "bestseller"
+                ? "bg-amber-100 text-amber-900 border-amber-500 ring-1 ring-amber-500"
+                : "bg-white text-stone-700 border-stone-200"
             }`}
           >
             <span>⭐</span>
             <span>Bestsellers</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic(8);
+              setDietFilter(dietFilter === "under_199" ? "all" : "under_199");
+            }}
+            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs shrink-0 ${
+              dietFilter === "under_199"
+                ? "bg-blue-100 text-blue-900 border-blue-500 ring-1 ring-blue-500"
+                : "bg-white text-stone-700 border-stone-200"
+            }`}
+          >
+            <span>💰</span>
+            <span>Under ₹199</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic(8);
+              setDietFilter(dietFilter === "spicy" ? "all" : "spicy");
+            }}
+            className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs shrink-0 ${
+              dietFilter === "spicy"
+                ? "bg-orange-100 text-orange-950 border-orange-500 ring-1 ring-orange-500"
+                : "bg-white text-stone-700 border-stone-200"
+            }`}
+          >
+            <span>🌶️</span>
+            <span>Spicy</span>
           </button>
 
           {dietFilter !== "all" && (
@@ -1729,7 +1886,7 @@ export default function CustomerTableOrderingPage({
                 triggerHaptic(6);
                 setDietFilter("all");
               }}
-              className="px-2 py-1.5 text-[11px] text-stone-400 hover:text-stone-700 cursor-pointer"
+              className="px-2 py-1.5 text-[11px] text-stone-400 hover:text-stone-700 cursor-pointer shrink-0"
             >
               Reset
             </button>
@@ -2104,7 +2261,14 @@ export default function CustomerTableOrderingPage({
                 </div>
                 <div className="text-left">
                   <div className="text-xs font-bold leading-tight">Review Table Ticket</div>
-                  <div className="text-[11px] opacity-75 font-receipt">₹{grandTotal} incl. GST</div>
+                  <div className="text-[11px] opacity-90 font-receipt flex items-center gap-1.5">
+                    <span>₹{grandTotal} incl. GST</span>
+                    {discountAmount > 0 && (
+                      <span className="text-emerald-300 font-extrabold text-[10px]">
+                        (Saved ₹{discountAmount}!)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2422,12 +2586,30 @@ export default function CustomerTableOrderingPage({
                 </div>
               )}
 
-              {/* Indian Tax Breakdown */}
+              {/* Indian Tax Breakdown & Offer Discount */}
               <div className="pt-3.5 border-t border-dashed space-y-1.5 font-receipt text-xs" style={{ borderColor: "var(--hairline)" }}>
                 <div className="flex justify-between" style={{ color: "var(--ink-soft)" }}>
                   <span>Items Subtotal</span>
                   <span>₹{subtotalCart.toLocaleString("en-IN")}</span>
                 </div>
+
+                {discountAmount > 0 ? (
+                  <div className="flex justify-between items-center py-1.5 px-2.5 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    <span className="flex items-center gap-1.5">
+                      <span>🎁</span>
+                      <span>Table Offer ({offerConfig.discountPercent}% OFF)</span>
+                    </span>
+                    <span className="font-extrabold">-₹{discountAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                ) : (
+                  offerConfig.active && (
+                    <div className="text-[10px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 flex items-center justify-between font-medium">
+                      <span>💡 Add ₹{Math.max(0, offerConfig.minOrderValue - subtotalCart)} more to unlock {offerConfig.discountPercent}% OFF</span>
+                      <span className="font-bold text-amber-900">FLAT {offerConfig.discountPercent}%</span>
+                    </div>
+                  )
+                )}
+
                 <div className="flex justify-between" style={{ color: "var(--ink-soft)" }}>
                   <span>CGST (2.5%)</span>
                   <span>₹{cgst.toFixed(2)}</span>
@@ -2437,9 +2619,16 @@ export default function CustomerTableOrderingPage({
                   <span>₹{sgst.toFixed(2)}</span>
                 </div>
                 <div className="pt-2.5 flex justify-between items-baseline border-t border-stone-300">
-                  <span className="font-heading text-sm font-extrabold" style={{ color: "var(--ink)" }}>
-                    Total Payable
-                  </span>
+                  <div>
+                    <span className="font-heading text-sm font-extrabold block" style={{ color: "var(--ink)" }}>
+                      Total Payable
+                    </span>
+                    {discountAmount > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700 block">
+                        🎉 Total savings: ₹{discountAmount}
+                      </span>
+                    )}
+                  </div>
                   <span className="font-heading text-2xl font-extrabold" style={{ color: "var(--rust)" }}>
                     ₹{grandTotal.toLocaleString("en-IN")}
                   </span>
@@ -2639,6 +2828,20 @@ export default function CustomerTableOrderingPage({
           </div>
         </div>
       )}
+
+      {/* Google Pay Style Interactive Scratch Card Modal */}
+      <ScratchCardModal
+        isOpen={isScratchModalOpen}
+        onClose={() => setIsScratchModalOpen(false)}
+        data={{
+          restaurantName,
+          tableNumber,
+          rewardTitle: offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit",
+          rewardSubtitle: `Agle visit par ₹${offerConfig.minOrderValue || 399}+ ke bill par valid`,
+          voucherCode: `${offerConfig.bounceBackCode || "REPEAT100"}-T${tableNumber.replace(/\D/g, "") || "4"}`,
+          shareUrl: typeof window !== "undefined" ? window.location.href : "",
+        }}
+      />
 
     </div>
   );

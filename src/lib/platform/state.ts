@@ -73,6 +73,7 @@ export type RestaurantFeatures = {
   dishNotes: boolean;         // ✏️ Special cooking instructions per dish
   smartUpsell: boolean;       // 💡 Smart pairing recommendations in cart
   feedbackReview: boolean;    // ⭐ 5-star Google review booster
+  loyaltyOffers?: boolean;    // 🎁 Dynamic discount banner, scratch card & referrals
   mobileNavStyle?: "bottom_bar" | "sidebar"; // 📱 Mobile Navigation Style (Default: 'bottom_bar')
   mobileSheetModals?: boolean; // 📲 Native Bottom Sheet Drawers for mobile forms (Default: true)
   autoMobileCards?: boolean;  // 🖼️ Auto-switch from dense tables to touch cards on mobile (Default: true)
@@ -86,10 +87,14 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   dishNotes: true,
   smartUpsell: true,
   feedbackReview: true,
+  loyaltyOffers: true,
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
 };
+
+import { RestaurantOfferConfig, DEFAULT_OFFER_CONFIG } from "@/lib/types/offers";
+export { type RestaurantOfferConfig, DEFAULT_OFFER_CONFIG };
 
 export type OrderPrepEstimate = {
   orderId: string;
@@ -114,6 +119,7 @@ export type PlatformState = {
   waiterCalls?: WaiterCallRequest[];
   restaurantThemes?: Record<string, RestaurantThemeType>;
   restaurantFeatures?: Record<string, RestaurantFeatures>;
+  restaurantOffers?: Record<string, RestaurantOfferConfig>;
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
   restaurantPhones?: Record<string, string>;
   dishSpecialTags?: Record<string, string>;
@@ -409,6 +415,30 @@ export function setRestaurantFeatures(restaurantId: string, features: Partial<Re
   const current = state.restaurantFeatures[restaurantId] || { ...DEFAULT_RESTAURANT_FEATURES };
   const updated: RestaurantFeatures = { ...current, ...features };
   state.restaurantFeatures[restaurantId] = updated;
+  savePlatformState(state);
+  return updated;
+}
+
+export function getRestaurantOfferConfig(restaurantId?: string): RestaurantOfferConfig {
+  if (!restaurantId) return { ...DEFAULT_OFFER_CONFIG };
+  const state = getPlatformState();
+  if (state.restaurantOffers && state.restaurantOffers[restaurantId]) {
+    return { ...DEFAULT_OFFER_CONFIG, ...state.restaurantOffers[restaurantId] };
+  }
+  return { ...DEFAULT_OFFER_CONFIG };
+}
+
+export function setRestaurantOfferConfig(
+  restaurantId: string,
+  config: Partial<RestaurantOfferConfig>
+): RestaurantOfferConfig {
+  const state = getPlatformState();
+  if (!state.restaurantOffers) {
+    state.restaurantOffers = {};
+  }
+  const current = state.restaurantOffers[restaurantId] || { ...DEFAULT_OFFER_CONFIG };
+  const updated: RestaurantOfferConfig = { ...current, ...config };
+  state.restaurantOffers[restaurantId] = updated;
   savePlatformState(state);
   return updated;
 }
