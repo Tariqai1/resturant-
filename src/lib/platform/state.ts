@@ -93,8 +93,20 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   autoMobileCards: true,
 };
 
-import { RestaurantOfferConfig, DEFAULT_OFFER_CONFIG } from "@/lib/types/offers";
-export { type RestaurantOfferConfig, DEFAULT_OFFER_CONFIG };
+import {
+  RestaurantOfferConfig,
+  DEFAULT_OFFER_CONFIG,
+  RestaurantThemeType,
+  RestaurantBrandingConfig,
+  DEFAULT_BRANDING_CONFIG,
+} from "@/lib/types/offers";
+export {
+  type RestaurantOfferConfig,
+  DEFAULT_OFFER_CONFIG,
+  type RestaurantThemeType,
+  type RestaurantBrandingConfig,
+  DEFAULT_BRANDING_CONFIG,
+};
 
 export type OrderPrepEstimate = {
   orderId: string;
@@ -102,8 +114,6 @@ export type OrderPrepEstimate = {
   setAt: string;
   setBy: "chef" | "waiter" | "admin";
 };
-
-export type RestaurantThemeType = "amber" | "crimson";
 
 export type RestaurantThemeConfig = {
   theme: RestaurantThemeType;
@@ -118,6 +128,7 @@ export type PlatformState = {
   staffPermissions: Record<string, StaffOrderPermissions>;
   waiterCalls?: WaiterCallRequest[];
   restaurantThemes?: Record<string, RestaurantThemeType>;
+  restaurantBrandings?: Record<string, RestaurantBrandingConfig>;
   restaurantFeatures?: Record<string, RestaurantFeatures>;
   restaurantOffers?: Record<string, RestaurantOfferConfig>;
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
@@ -395,6 +406,34 @@ export function setRestaurantTheme(restaurantId: string, theme: RestaurantThemeT
   state.restaurantThemes[restaurantId] = theme;
   savePlatformState(state);
   return theme;
+}
+
+export function getRestaurantBranding(restaurantId?: string): RestaurantBrandingConfig {
+  if (!restaurantId) return { ...DEFAULT_BRANDING_CONFIG };
+  const state = getPlatformState();
+  const theme = getRestaurantTheme(restaurantId);
+  if (state.restaurantBrandings && state.restaurantBrandings[restaurantId]) {
+    return { ...DEFAULT_BRANDING_CONFIG, ...state.restaurantBrandings[restaurantId], theme };
+  }
+  return { ...DEFAULT_BRANDING_CONFIG, theme };
+}
+
+export function setRestaurantBranding(
+  restaurantId: string,
+  branding: Partial<RestaurantBrandingConfig>
+): RestaurantBrandingConfig {
+  const state = getPlatformState();
+  if (!state.restaurantBrandings) {
+    state.restaurantBrandings = {};
+  }
+  const current = getRestaurantBranding(restaurantId);
+  const updated: RestaurantBrandingConfig = { ...current, ...branding };
+  state.restaurantBrandings[restaurantId] = updated;
+  if (branding.theme) {
+    setRestaurantTheme(restaurantId, branding.theme);
+  }
+  savePlatformState(state);
+  return updated;
 }
 
 

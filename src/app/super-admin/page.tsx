@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ShareMenuModal, { ShareMenuTable } from "@/components/ShareMenuModal";
 import type { RestaurantFeatures } from "@/lib/platform/state";
+import type {
+  RestaurantThemeType,
+  RestaurantBrandingConfig,
+  RestaurantOfferConfig,
+} from "@/lib/types/offers";
+import { DEFAULT_OFFER_CONFIG, DEFAULT_BRANDING_CONFIG } from "@/lib/types/offers";
 
 const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   callWaiter: true,
@@ -15,6 +21,7 @@ const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   dishNotes: true,
   smartUpsell: true,
   feedbackReview: true,
+  loyaltyOffers: true,
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
@@ -41,8 +48,10 @@ type RestaurantFleetItem = {
   subscriptionPlan: "trial" | "basic" | "pro";
   subscriptionStatus: "active" | "expired" | "cancelled";
   isArchived?: boolean;
-  theme?: "amber" | "crimson";
+  theme?: RestaurantThemeType;
+  branding?: RestaurantBrandingConfig;
   features?: RestaurantFeatures;
+  offerConfig?: RestaurantOfferConfig;
   tables?: ShareMenuTable[];
   firstTableToken?: string | null;
   createdAt: string;
@@ -458,6 +467,8 @@ export default function SuperAdminPage() {
           id: cockpitResto.id,
           features: cockpitResto.features,
           theme: cockpitResto.theme,
+          branding: cockpitResto.branding,
+          offerConfig: cockpitResto.offerConfig,
           subscription_plan: cockpitResto.subscriptionPlan,
           subscription_status: cockpitResto.subscriptionStatus,
         }),
@@ -1604,6 +1615,12 @@ export default function SuperAdminPage() {
                           {/* 1-Click Direct Feature Matrix Pills */}
                           <div className="flex flex-wrap items-center gap-1.5 mt-2">
                             {[
+                              {
+                                key: "loyaltyOffers" as const,
+                                label: "Offers",
+                                icon: "🎁",
+                                active: Boolean(r.features?.loyaltyOffers ?? true),
+                              },
                               {
                                 key: "tablePayUpi" as const,
                                 label: "UPI",
@@ -3703,6 +3720,12 @@ export default function SuperAdminPage() {
                   <div className="space-y-2">
                     {[
                       {
+                        key: "loyaltyOffers" as const,
+                        label: "Loyalty Offers & Mystery Scratch Card",
+                        desc: "Top discount banner, Google Pay style scratch card & WhatsApp referral",
+                        icon: "🎁",
+                      },
+                      {
                         key: "tablePayUpi" as const,
                         label: "Instant Table UPI Payment",
                         desc: "Diner scans QR and pays directly via PhonePe / GPay / Paytm",
@@ -3969,7 +3992,285 @@ export default function SuperAdminPage() {
                   </div>
                 </div>
 
-                {/* Section 4: WhatsApp Setup Sender */}
+                {/* Section 4: White-Label Branding & 5 Dining Themes */}
+                <div className="space-y-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#A89F91] block border-b border-[#241E18] pb-1">
+                    🎨 White-Label Branding &amp; Signature Theme Palette
+                  </span>
+
+                  <div className="p-4 bg-[#14110E] border border-[#2D251F] rounded-xl space-y-4">
+                    {/* 5 Themes Selection */}
+                    <div>
+                      <label className="text-[11px] font-bold text-white block mb-1.5">
+                        Signature Brand Persona &amp; Theme
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {[
+                          {
+                            id: "saffron" as const,
+                            name: "Punjab Saffron",
+                            type: "Highway Dhaba & Tandoor",
+                            primary: "#EA580C",
+                            border: "#C2410C",
+                            icon: "🔥",
+                          },
+                          {
+                            id: "amber" as const,
+                            name: "Amber Gold",
+                            type: "Family Dining & Biryani",
+                            primary: "#FFBE0B",
+                            border: "#D97706",
+                            icon: "🏆",
+                          },
+                          {
+                            id: "crimson" as const,
+                            name: "Royal Crimson",
+                            type: "Mughlai & Fine-Dine",
+                            primary: "#741A2F",
+                            border: "#5E1425",
+                            icon: "🍷",
+                          },
+                          {
+                            id: "emerald" as const,
+                            name: "Pure Emerald",
+                            type: "Pure Veg & South Indian",
+                            primary: "#059669",
+                            border: "#047857",
+                            icon: "🌿",
+                          },
+                          {
+                            id: "charcoal" as const,
+                            name: "Midnight Charcoal",
+                            type: "Modern Cafe & Bistro",
+                            primary: "#F59E0B",
+                            border: "#3F3F46",
+                            icon: "🖤",
+                          },
+                        ].map((thm) => {
+                          const isSelected = (cockpitResto.theme || "amber") === thm.id;
+                          return (
+                            <button
+                              key={thm.id}
+                              type="button"
+                              onClick={() => {
+                                setCockpitResto({
+                                  ...cockpitResto,
+                                  theme: thm.id,
+                                  branding: {
+                                    ...(cockpitResto.branding || DEFAULT_BRANDING_CONFIG),
+                                    theme: thm.id,
+                                  },
+                                });
+                              }}
+                              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer relative ${
+                                isSelected
+                                  ? "border-white bg-[#221C16] shadow-md ring-1 ring-white"
+                                  : "border-[#2D251F] bg-[#100D0A] hover:border-stone-600 text-stone-400"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-base">{thm.icon}</span>
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
+                                  style={{ backgroundColor: thm.primary }}
+                                />
+                              </div>
+                              <div className="font-bold text-xs text-white leading-tight">{thm.name}</div>
+                              <div className="text-[9px] text-stone-400 mt-0.5 truncate">{thm.type}</div>
+                              {isSelected && (
+                                <span className="absolute top-1.5 right-1.5 text-[9px] text-emerald-400 font-bold">
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Logo URL & Tagline Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#241E18]">
+                      <div>
+                        <label className="text-[11px] font-bold text-white block mb-1">
+                          Brand Logo URL
+                        </label>
+                        <div className="flex items-center gap-2">
+                          {cockpitResto.branding?.logoUrl ? (
+                            <img
+                              src={cockpitResto.branding.logoUrl}
+                              alt="Logo"
+                              className="w-8 h-8 rounded-full object-cover border border-stone-700 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-stone-800 border border-stone-700 flex items-center justify-center text-xs shrink-0">
+                              🥘
+                            </div>
+                          )}
+                          <input
+                            type="text"
+                            placeholder="https://.../logo.png"
+                            value={cockpitResto.branding?.logoUrl || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCockpitResto({
+                                ...cockpitResto,
+                                branding: {
+                                  ...(cockpitResto.branding || DEFAULT_BRANDING_CONFIG),
+                                  theme: cockpitResto.theme || "amber",
+                                  logoUrl: val || null,
+                                },
+                              });
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-white block mb-1">
+                          Custom Tagline / Catchphrase
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Asli Tandoori Swaad since 1998"
+                          value={cockpitResto.branding?.tagline || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              branding: {
+                                ...(cockpitResto.branding || DEFAULT_BRANDING_CONFIG),
+                                theme: cockpitResto.theme || "amber",
+                                tagline: val || null,
+                              },
+                            });
+                          }}
+                          className="w-full px-3 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 5: Retention & Dynamic Offer Engine */}
+                <div className="space-y-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#A89F91] block border-b border-[#241E18] pb-1">
+                    🎁 Customer Retention &amp; Discount Banner Parameters
+                  </span>
+
+                  <div className="p-4 bg-[#14110E] border border-[#2D251F] rounded-xl space-y-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-white block mb-1">
+                        Banner Promo Text (Shown at Top of Menu)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="FLAT 20% OFF TODAY · Auto-applied on orders above ₹399"
+                        value={cockpitResto.offerConfig?.bannerText || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            offerConfig: {
+                              ...(cockpitResto.offerConfig || DEFAULT_OFFER_CONFIG),
+                              bannerText: val,
+                            },
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-400 block mb-1">
+                          Discount %
+                        </label>
+                        <input
+                          type="number"
+                          value={cockpitResto.offerConfig?.discountPercent ?? 20}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              offerConfig: {
+                                ...(cockpitResto.offerConfig || DEFAULT_OFFER_CONFIG),
+                                discountPercent: val,
+                              },
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-400 block mb-1">
+                          Min Order (₹)
+                        </label>
+                        <input
+                          type="number"
+                          value={cockpitResto.offerConfig?.minOrderValue ?? 399}
+                          onChange={(e) => {
+                            const val = Number(e.target.value) || 0;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              offerConfig: {
+                                ...(cockpitResto.offerConfig || DEFAULT_OFFER_CONFIG),
+                                minOrderValue: val,
+                              },
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-400 block mb-1">
+                          Voucher Code
+                        </label>
+                        <input
+                          type="text"
+                          value={cockpitResto.offerConfig?.bounceBackCode || "REPEAT100"}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              offerConfig: {
+                                ...(cockpitResto.offerConfig || DEFAULT_OFFER_CONFIG),
+                                bounceBackCode: val,
+                              },
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-stone-400 block mb-1">
+                        Mystery Scratch Card Reward Title
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="₹100 OFF on your next visit (Min order ₹499)"
+                        value={cockpitResto.offerConfig?.bounceBackReward || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            offerConfig: {
+                              ...(cockpitResto.offerConfig || DEFAULT_OFFER_CONFIG),
+                              bounceBackReward: val,
+                            },
+                          });
+                        }}
+                        className="w-full px-3 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 6: WhatsApp Setup Sender */}
                 <div className="p-4 bg-[#141F17] border border-emerald-800/60 rounded-xl space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -4026,95 +4327,162 @@ export default function SuperAdminPage() {
                   </div>
 
                   {/* Simulator Screen Content */}
-                  <div className="flex-1 flex flex-col bg-[#1A1612] text-white p-3 pt-1 overflow-hidden text-[11px] select-none">
-                    {/* Simulator Top Nav */}
-                    <div className="flex items-center justify-between border-b border-stone-800/80 pb-2 mb-2">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="text-xs">🔥</span>
-                        <span className="font-bold truncate text-[11px]">{cockpitResto.name}</span>
-                      </div>
-                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
-                        Table T04
-                      </span>
-                    </div>
+                  {/* Simulator Screen Content */}
+                  {(() => {
+                    const thm = cockpitResto.theme || "amber";
+                    const themeColorMap: Record<string, { bg: string; surface: string; border: string; primary: string; pill: string }> = {
+                      saffron: { bg: "#1A110D", surface: "#2C1810", border: "#432517", primary: "#EA580C", pill: "bg-orange-500/20 text-orange-300" },
+                      amber: { bg: "#1A1612", surface: "#241E18", border: "#3A321B", primary: "#FFBE0B", pill: "bg-amber-500/20 text-amber-300" },
+                      crimson: { bg: "#1B0B11", surface: "#2E1218", border: "#5E1425", primary: "#741A2F", pill: "bg-rose-500/20 text-rose-300" },
+                      emerald: { bg: "#0B1B14", surface: "#0B291D", border: "#0A664E", primary: "#059669", pill: "bg-emerald-500/20 text-emerald-300" },
+                      charcoal: { bg: "#121214", surface: "#202024", border: "#3F3F46", primary: "#F59E0B", pill: "bg-amber-500/20 text-amber-300" },
+                    };
+                    const activeThemeStyles = themeColorMap[thm] || themeColorMap.amber;
 
-                    {/* Simulator Dynamic Modules */}
-                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                      {/* Call Waiter Pill */}
-                      {cockpitResto.features?.callWaiter !== false && (
-                        <div className="p-2 rounded-lg bg-[#241E18] border border-amber-500/30 flex items-center justify-between text-[10px]">
-                          <span className="flex items-center gap-1">
-                            <span>🛎️</span>
-                            <span>Service Bell Active</span>
-                          </span>
-                          <span className="text-[#D96B27] font-bold">Ring</span>
-                        </div>
-                      )}
-
-                      {/* Sample Food Card */}
-                      <div className="p-2.5 rounded-lg bg-[#221C17] border border-stone-800 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-white">Paneer Butter Masala</span>
-                          <span className="font-mono text-amber-400 font-bold">₹310</span>
-                        </div>
-                        {cockpitResto.features?.dishNotes !== false && (
-                          <div className="text-[9px] text-stone-400 italic bg-black/40 px-2 py-0.5 rounded">
-                            ✏️ Note: Extra gravy, less butter...
+                    return (
+                      <div
+                        className="flex-1 flex flex-col text-white p-3 pt-1 overflow-hidden text-[11px] select-none transition-colors duration-300"
+                        style={{ backgroundColor: activeThemeStyles.bg }}
+                      >
+                        {/* Simulator Top Nav */}
+                        <div
+                          className="flex items-center justify-between border-b pb-2 mb-2"
+                          style={{ borderColor: activeThemeStyles.border }}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {cockpitResto.branding?.logoUrl ? (
+                              <img
+                                src={cockpitResto.branding.logoUrl}
+                                alt="Logo"
+                                className="w-5 h-5 rounded-full object-cover border border-white/20 shrink-0"
+                              />
+                            ) : (
+                              <span className="text-xs">
+                                {thm === "saffron" ? "🔥" : thm === "emerald" ? "🌿" : thm === "crimson" ? "🍷" : thm === "charcoal" ? "🖤" : "🥘"}
+                              </span>
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-bold truncate text-[11px] leading-tight">{cockpitResto.name}</div>
+                              {cockpitResto.branding?.tagline && (
+                                <div className="text-[8px] text-stone-400 truncate leading-none mt-0.5">
+                                  {cockpitResto.branding.tagline}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
+                          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded font-bold ${activeThemeStyles.pill}`}>
+                            Table T04
+                          </span>
+                        </div>
 
-                      {/* Smart Upsell Preview */}
-                      {cockpitResto.features?.smartUpsell !== false && (
-                        <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-800/40 text-[9px] space-y-1">
-                          <div className="font-bold text-amber-300 flex items-center gap-1">
-                            <span>💡</span>
-                            <span>Pair with Garlic Naan</span>
+                        {/* Simulator Dynamic Modules */}
+                        <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                          {/* Offer Banner Preview */}
+                          {cockpitResto.features?.loyaltyOffers !== false && (
+                            <div className="p-2 rounded-lg bg-gradient-to-r from-amber-950/70 to-orange-950/70 border border-amber-600/50 text-[9px] flex items-center justify-between">
+                              <span className="font-bold text-amber-300 truncate">
+                                🔥 {cockpitResto.offerConfig?.bannerText || "FLAT 20% OFF TODAY"}
+                              </span>
+                              <span className="bg-amber-500 text-stone-950 px-1 py-0.2 rounded font-black text-[8px] shrink-0">
+                                20%
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Call Waiter Pill */}
+                          {cockpitResto.features?.callWaiter !== false && (
+                            <div
+                              className="p-2 rounded-lg border flex items-center justify-between text-[10px]"
+                              style={{ backgroundColor: activeThemeStyles.surface, borderColor: activeThemeStyles.border }}
+                            >
+                              <span className="flex items-center gap-1">
+                                <span>🛎️</span>
+                                <span>Service Bell Active</span>
+                              </span>
+                              <span className="font-bold" style={{ color: activeThemeStyles.primary }}>Ring</span>
+                            </div>
+                          )}
+
+                          {/* Sample Food Card */}
+                          <div
+                            className="p-2.5 rounded-lg border space-y-1.5"
+                            style={{ backgroundColor: activeThemeStyles.surface, borderColor: activeThemeStyles.border }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white">Paneer Butter Masala</span>
+                              <span className="font-mono font-bold" style={{ color: activeThemeStyles.primary }}>₹310</span>
+                            </div>
+                            {cockpitResto.features?.dishNotes !== false && (
+                              <div className="text-[9px] text-stone-400 italic bg-black/40 px-2 py-0.5 rounded">
+                                ✏️ Note: Extra gravy, less butter...
+                              </div>
+                            )}
                           </div>
-                          <div className="text-stone-400">+₹75 • 82% diners add this</div>
-                        </div>
-                      )}
 
-                      {/* Table Pay UPI QR Preview */}
-                      {cockpitResto.features?.tablePayUpi !== false && (
-                        <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[9px] flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 font-bold text-emerald-300">
-                            <span>💳</span>
-                            <span>Instant UPI Settlement</span>
-                          </span>
-                          <span className="bg-emerald-500 text-black px-1.5 py-0.5 rounded font-bold text-[8px]">
-                            PAY NOW
-                          </span>
-                        </div>
-                      )}
+                          {/* Smart Upsell Preview */}
+                          {cockpitResto.features?.smartUpsell !== false && (
+                            <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-800/40 text-[9px] space-y-1">
+                              <div className="font-bold text-amber-300 flex items-center gap-1">
+                                <span>💡</span>
+                                <span>Pair with Garlic Naan</span>
+                              </div>
+                              <div className="text-stone-400">+₹75 • 82% diners add this</div>
+                            </div>
+                          )}
 
-                      {/* Review Booster */}
-                      {cockpitResto.features?.feedbackReview !== false && (
-                        <div className="p-2 rounded-lg bg-stone-900 border border-stone-800 text-[9px] text-center">
-                          <span className="text-amber-400">⭐⭐⭐⭐⭐</span>
-                          <div className="text-stone-400 text-[8px]">Google 5-Star Review Prompt</div>
-                        </div>
-                      )}
-                    </div>
+                          {/* Mystery Scratch Reward Button */}
+                          {cockpitResto.features?.loyaltyOffers !== false && (
+                            <div className="p-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-yellow-400 text-stone-950 font-black text-[9px] flex items-center justify-center gap-1 shadow-xs">
+                              <span>🎁</span>
+                              <span>Scratch Mystery Reward (₹100 Voucher)</span>
+                            </div>
+                          )}
 
-                    {/* Bottom Nav Simulation */}
-                    <div className="pt-2 border-t border-stone-800/80 mt-1 shrink-0">
-                      {cockpitResto.features?.mobileNavStyle !== "sidebar" ? (
-                        <div className="flex justify-around text-[9px] font-mono text-stone-400">
-                          <span className="text-[#D96B27] font-bold">Floor</span>
-                          <span>Tables</span>
-                          <span>Kitchen</span>
-                          <span>Menu</span>
-                          <span>Staff</span>
+                          {/* Table Pay UPI QR Preview */}
+                          {cockpitResto.features?.tablePayUpi !== false && (
+                            <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[9px] flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 font-bold text-emerald-300">
+                                <span>💳</span>
+                                <span>Instant UPI Settlement</span>
+                              </span>
+                              <span className="bg-emerald-500 text-black px-1.5 py-0.5 rounded font-bold text-[8px]">
+                                PAY NOW
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Review Booster */}
+                          {cockpitResto.features?.feedbackReview !== false && (
+                            <div className="p-2 rounded-lg bg-stone-900 border border-stone-800 text-[9px] text-center">
+                              <span className="text-amber-400">⭐⭐⭐⭐⭐</span>
+                              <div className="text-stone-400 text-[8px]">Google 5-Star Review Prompt</div>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="flex items-center justify-between text-[9px] text-stone-400 px-1">
-                          <span>☰ Menu Drawer</span>
-                          <span>Cast-Iron Sidebar Mode</span>
+
+                        {/* Bottom Nav Simulation */}
+                        <div
+                          className="pt-2 border-t mt-1 shrink-0"
+                          style={{ borderColor: activeThemeStyles.border }}
+                        >
+                          {cockpitResto.features?.mobileNavStyle !== "sidebar" ? (
+                            <div className="flex justify-around text-[9px] font-mono text-stone-400">
+                              <span className="font-bold" style={{ color: activeThemeStyles.primary }}>Floor</span>
+                              <span>Tables</span>
+                              <span>Kitchen</span>
+                              <span>Menu</span>
+                              <span>Staff</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between text-[9px] text-stone-400 px-1">
+                              <span>☰ Menu Drawer</span>
+                              <span>Cast-Iron Sidebar Mode</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Home Bar Indicator */}
                   <div className="w-24 h-1 bg-stone-600 rounded-full mx-auto my-1.5 z-20 shrink-0" />

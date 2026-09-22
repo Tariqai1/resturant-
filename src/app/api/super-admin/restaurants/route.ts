@@ -9,8 +9,12 @@ import {
   isRestaurantArchived,
   getRestaurantTheme,
   setRestaurantTheme,
+  getRestaurantBranding,
+  setRestaurantBranding,
   getRestaurantFeatures,
   setRestaurantFeatures,
+  getRestaurantOfferConfig,
+  setRestaurantOfferConfig,
   getRestaurantPhone,
   setRestaurantPhone,
 } from "@/lib/platform/state";
@@ -103,7 +107,9 @@ export async function GET(request: Request) {
         subscriptionStatus: r.subscription_status || "active",
         isArchived: archived,
         theme: getRestaurantTheme(r.id),
+        branding: getRestaurantBranding(r.id),
         features: getRestaurantFeatures(r.id),
+        offerConfig: getRestaurantOfferConfig(r.id),
         tables: restoTables.map((t) => ({
           id: t.id,
           table_number: t.table_number,
@@ -340,7 +346,7 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, ids, subscription_plan, subscription_status, name, gstin, action, theme, features } = body;
+    const { id, ids, subscription_plan, subscription_status, name, gstin, action, theme, features, branding, offerConfig } = body;
 
     const targetIds: string[] = Array.isArray(ids) && ids.length > 0 ? ids : (id ? [id] : []);
 
@@ -357,9 +363,19 @@ export async function PATCH(request: Request) {
           setRestaurantFeatures(tid, features);
         }
       }
-      if (theme === "amber" || theme === "crimson") {
+      if (theme && ["amber", "crimson", "saffron", "emerald", "charcoal"].includes(theme)) {
         for (const tid of targetIds) {
           setRestaurantTheme(tid, theme);
+        }
+      }
+      if (branding && typeof branding === "object") {
+        for (const tid of targetIds) {
+          setRestaurantBranding(tid, branding);
+        }
+      }
+      if (offerConfig && typeof offerConfig === "object") {
+        for (const tid of targetIds) {
+          setRestaurantOfferConfig(tid, offerConfig);
         }
       }
       const batchUpdates: Record<string, unknown> = {};
@@ -378,6 +394,8 @@ export async function PATCH(request: Request) {
         actorEmail: authCheck.user?.email || "super-admin",
         details: `Batch updated ${targetIds.length} restaurants: ${[
           features ? "Feature entitlements" : null,
+          branding ? "Branding/Theme" : null,
+          offerConfig ? "Offers/Scratch Card" : null,
           subscription_status ? `Status -> ${subscription_status}` : null,
           subscription_plan ? `Plan -> ${subscription_plan}` : null,
         ].filter(Boolean).join(", ")}`,
@@ -454,14 +472,36 @@ export async function PATCH(request: Request) {
     if (name) updates.name = name.trim();
     if (gstin !== undefined) updates.gstin = gstin?.trim() || null;
 
-    if (theme === "amber" || theme === "crimson") {
+    if (theme && ["amber", "crimson", "saffron", "emerald", "charcoal"].includes(theme)) {
       setRestaurantTheme(singleId, theme);
       logActivity({
         action: "STATUS_CHANGE",
         actorEmail: authCheck.user?.email || "super-admin",
         targetId: singleId,
         targetName,
-        details: `Updated theme palette to "${theme === "amber" ? "Amber Gold (#FFBE0B)" : "Velvet Crimson (#741A2F)"}" for "${targetName}"`,
+        details: `Updated theme palette to "${theme}" for "${targetName}"`,
+      });
+    }
+
+    if (branding && typeof branding === "object") {
+      setRestaurantBranding(singleId, branding);
+      logActivity({
+        action: "STATUS_CHANGE",
+        actorEmail: authCheck.user?.email || "super-admin",
+        targetId: singleId,
+        targetName,
+        details: `Updated white-label branding (logo/tagline/theme) for "${targetName}"`,
+      });
+    }
+
+    if (offerConfig && typeof offerConfig === "object") {
+      setRestaurantOfferConfig(singleId, offerConfig);
+      logActivity({
+        action: "STATUS_CHANGE",
+        actorEmail: authCheck.user?.email || "super-admin",
+        targetId: singleId,
+        targetName,
+        details: `Updated retention offers & scratch card settings for "${targetName}"`,
       });
     }
 

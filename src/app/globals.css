@@ -85,6 +85,126 @@
   --shadow-lg: 0 10px 24px -4px rgba(116, 26, 47, 0.16);
 }
 
+[data-theme="saffron"] {
+  /* Highway Dhaba Theme: Punjab Saffron & Charred Wood */
+  --brand-primary: #EA580C;
+  --brand-primary-hover: #C2410C;
+  --brand-primary-soft: #FFF7ED;
+  --brand-dark: #2C1810;
+  --brand-dark-card: #432517;
+
+  --paper: #FAF6F0;
+  --paper-dim: #F4ECE1;
+  --ink: #2C1810;
+  --ink-soft: #7C5E4F;
+  --hairline: #E9DCB8;
+  
+  --rust: #EA580C;
+  --rust-text: #FFFFFF;
+  --sage: #2E7D32;
+  --brick: #C2410C;
+  --ink-blue: #234E52;
+  --dark-surface: #2C1810;
+
+  /* Operational tokens */
+  --paper-bg: var(--paper);
+  --card-bg: #FFFFFF;
+  --sidebar-bg: var(--dark-surface);
+  --border-color: var(--hairline);
+  --ink-dark: var(--ink);
+  --ink-muted: var(--ink-soft);
+  
+  --brand-rust: var(--rust);
+  --status-sage: var(--sage);
+  --status-brick: var(--brick);
+  --status-blue: var(--ink-blue);
+  --status-amber: #FDBA74;
+
+  --shadow-sm: 0 1px 3px rgba(44, 24, 16, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(44, 24, 16, 0.1);
+  --shadow-lg: 0 10px 24px -4px rgba(44, 24, 16, 0.16);
+}
+
+[data-theme="emerald"] {
+  /* Pure Veg Theme: Satvik Leaf Green & Coconut White */
+  --brand-primary: #059669;
+  --brand-primary-hover: #047857;
+  --brand-primary-soft: #ECFDF5;
+  --brand-dark: #064E3B;
+  --brand-dark-card: #0A664E;
+
+  --paper: #F6FAF7;
+  --paper-dim: #EAF4EC;
+  --ink: #0B291D;
+  --ink-soft: #4D7364;
+  --hairline: #D1E5D7;
+  
+  --rust: #059669;
+  --rust-text: #FFFFFF;
+  --sage: #059669;
+  --brick: #E11D48;
+  --ink-blue: #0E7490;
+  --dark-surface: #064E3B;
+
+  /* Operational tokens */
+  --paper-bg: var(--paper);
+  --card-bg: #FFFFFF;
+  --sidebar-bg: var(--dark-surface);
+  --border-color: var(--hairline);
+  --ink-dark: var(--ink);
+  --ink-muted: var(--ink-soft);
+  
+  --brand-rust: var(--rust);
+  --status-sage: var(--sage);
+  --status-brick: var(--brick);
+  --status-blue: var(--ink-blue);
+  --status-amber: #6EE7B7;
+
+  --shadow-sm: 0 1px 3px rgba(11, 41, 29, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(11, 41, 29, 0.1);
+  --shadow-lg: 0 10px 24px -4px rgba(11, 41, 29, 0.16);
+}
+
+[data-theme="charcoal"] {
+  /* Urban Cafe / Pub Theme: Midnight Charcoal & Neon Amber */
+  --brand-primary: #F59E0B;
+  --brand-primary-hover: #D97706;
+  --brand-primary-soft: #27272A;
+  --brand-dark: #09090B;
+  --brand-dark-card: #27272A;
+
+  --paper: #18181B;
+  --paper-dim: #27272A;
+  --ink: #FAFAFA;
+  --ink-soft: #A1A1AA;
+  --hairline: #3F3F46;
+  
+  --rust: #F59E0B;
+  --rust-text: #18181B;
+  --sage: #10B981;
+  --brick: #F43F5E;
+  --ink-blue: #38BDF8;
+  --dark-surface: #09090B;
+
+  /* Operational tokens */
+  --paper-bg: var(--paper);
+  --card-bg: #27272A;
+  --sidebar-bg: var(--dark-surface);
+  --border-color: var(--hairline);
+  --ink-dark: var(--ink);
+  --ink-muted: var(--ink-soft);
+  
+  --brand-rust: var(--rust);
+  --status-sage: var(--sage);
+  --status-brick: var(--brick);
+  --status-blue: var(--ink-blue);
+  --status-amber: #FCD34D;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 24px -4px rgba(0, 0, 0, 0.7);
+}
+
 * { box-sizing: border-box; }
 
 body {

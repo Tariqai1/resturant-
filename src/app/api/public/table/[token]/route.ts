@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime, getRestaurantOfferConfig } from "@/lib/platform/state";
+import { getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime, getRestaurantOfferConfig, getRestaurantBranding } from "@/lib/platform/state";
 
 export async function GET(
   _request: NextRequest,
@@ -135,6 +135,7 @@ export async function GET(
     }
 
     const theme = getRestaurantTheme(table.restaurant_id);
+    const branding = getRestaurantBranding(table.restaurant_id);
     const features = getRestaurantFeatures(table.restaurant_id);
     const offerConfig = getRestaurantOfferConfig(table.restaurant_id);
     const prepEstimate = validOpenOrder ? getOrderPrepTime(validOpenOrder.id) : null;
@@ -142,6 +143,7 @@ export async function GET(
     return NextResponse.json({
       ok: true,
       theme,
+      branding,
       features,
       offerConfig,
       table: {

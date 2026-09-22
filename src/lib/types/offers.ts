@@ -17,3 +17,17 @@ export const DEFAULT_OFFER_CONFIG: RestaurantOfferConfig = {
   bounceBackCode: "REPEAT100",
   referralDiscount: "15% OFF for your friends",
 };
+
+export type RestaurantThemeType = "amber" | "crimson" | "saffron" | "emerald" | "charcoal";
+
+export type RestaurantBrandingConfig = {
+  theme: RestaurantThemeType;
+  logoUrl?: string | null;
+  tagline?: string | null;
+};
+
+export const DEFAULT_BRANDING_CONFIG: RestaurantBrandingConfig = {
+  theme: "amber",
+  logoUrl: null,
+  tagline: null,
+};

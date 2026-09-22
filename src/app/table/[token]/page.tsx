@@ -3,7 +3,13 @@
 import { useEffect, useState, useCallback, use } from "react";
 import FoodChefLoader from "@/components/FoodChefLoader";
 import ScratchCardModal from "@/components/table/ScratchCardModal";
-import { RestaurantOfferConfig, DEFAULT_OFFER_CONFIG } from "@/lib/types/offers";
+import {
+  RestaurantOfferConfig,
+  DEFAULT_OFFER_CONFIG,
+  RestaurantThemeType,
+  RestaurantBrandingConfig,
+  DEFAULT_BRANDING_CONFIG,
+} from "@/lib/types/offers";
 
 type MenuItem = {
   id: string;
@@ -187,7 +193,8 @@ export default function CustomerTableOrderingPage({
   const [items, setItems] = useState<MenuItem[]>([]);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
   const [joinedNotice, setJoinedNotice] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"amber" | "crimson">("amber");
+  const [theme, setTheme] = useState<RestaurantThemeType>("amber");
+  const [branding, setBranding] = useState<RestaurantBrandingConfig>(DEFAULT_BRANDING_CONFIG);
 
   // Feature Entitlements controlled by Super Admin
   const [features, setFeatures] = useState<RestaurantFeatures>({
@@ -281,7 +288,12 @@ export default function CustomerTableOrderingPage({
           if (parsed.table?.table_number) setTableNumber(parsed.table.table_number);
           if (parsed.categories?.length) setCategories(parsed.categories);
           if (parsed.items?.length) setItems(parsed.items);
-          if (parsed.theme) setTheme(parsed.theme);
+          if (parsed.branding) {
+            setBranding(parsed.branding);
+            if (parsed.branding.theme) setTheme(parsed.branding.theme);
+          } else if (parsed.theme) {
+            setTheme(parsed.theme);
+          }
           if (parsed.features) setFeatures(parsed.features);
           if (parsed.offerConfig) setOfferConfig(parsed.offerConfig);
           setIsLoading(false); // 0.05s instant render!
@@ -304,7 +316,12 @@ export default function CustomerTableOrderingPage({
       setItems(data.items || []);
       setActiveOrder(data.activeOrder || null);
       if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
-      if (data.theme) setTheme(data.theme);
+      if (data.branding) {
+        setBranding(data.branding);
+        if (data.branding.theme) setTheme(data.branding.theme);
+      } else if (data.theme) {
+        setTheme(data.theme);
+      }
       if (data.features) setFeatures(data.features);
       if (data.offerConfig) setOfferConfig(data.offerConfig);
 
@@ -333,7 +350,12 @@ export default function CustomerTableOrderingPage({
         setItems(data.items || []);
         setActiveOrder(data.activeOrder || null);
         if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
-        if (data.theme) setTheme(data.theme);
+        if (data.branding) {
+          setBranding(data.branding);
+          if (data.branding.theme) setTheme(data.branding.theme);
+        } else if (data.theme) {
+          setTheme(data.theme);
+        }
         if (data.features) setFeatures(data.features);
         if (data.offerConfig) setOfferConfig(data.offerConfig);
         try {
@@ -692,6 +714,16 @@ export default function CustomerTableOrderingPage({
                 type="button"
                 onClick={() => {
                   triggerHaptic(8);
+                  setTheme("saffron");
+                }}
+                title="Punjab Saffron Theme"
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "saffron" ? "ring-2 ring-orange-500 scale-110" : "opacity-50"}`}
+                style={{ backgroundColor: "#EA580C", borderColor: "#2C1810" }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
                   setTheme("amber");
                 }}
                 title="Amber Gold Theme"
@@ -708,16 +740,46 @@ export default function CustomerTableOrderingPage({
                 className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "crimson" ? "ring-2 ring-rose-700 scale-110" : "opacity-50"}`}
                 style={{ backgroundColor: "#741A2F", borderColor: "#FFC6A8" }}
               />
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setTheme("emerald");
+                }}
+                title="Pure Emerald Theme"
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "emerald" ? "ring-2 ring-emerald-500 scale-110" : "opacity-50"}`}
+                style={{ backgroundColor: "#059669", borderColor: "#022C22" }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(8);
+                  setTheme("charcoal");
+                }}
+                title="Midnight Charcoal Theme"
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer ${theme === "charcoal" ? "ring-2 ring-amber-400 scale-110" : "opacity-50"}`}
+                style={{ backgroundColor: "#18181B", borderColor: "#F59E0B" }}
+              />
             </div>
           </div>
 
-          <div>
-            <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight line-clamp-1 leading-tight" style={{ color: "var(--ink)" }}>
-              {restaurantName}
-            </h1>
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold mt-0.5" style={{ color: "var(--ink-soft)" }}>
-              <span className="text-amber-500">★★★★★</span>
-              <span>Instant Contactless Table Experience</span>
+          <div className="flex items-center gap-3 pt-1">
+            {branding?.logoUrl ? (
+              <img
+                src={branding.logoUrl}
+                alt={restaurantName}
+                className="w-12 h-12 rounded-2xl object-cover shadow-sm border flex-shrink-0"
+                style={{ borderColor: "var(--hairline)" }}
+              />
+            ) : null}
+            <div className="min-w-0">
+              <h1 className="font-heading text-2xl sm:text-3xl font-extrabold tracking-tight line-clamp-1 leading-tight" style={{ color: "var(--ink)" }}>
+                {restaurantName}
+              </h1>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold mt-0.5" style={{ color: "var(--ink-soft)" }}>
+                <span className="text-amber-500">★★★★★</span>
+                <span className="line-clamp-1">{branding?.tagline || "Instant Contactless Table Experience"}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -859,37 +921,50 @@ export default function CustomerTableOrderingPage({
           boxShadow: "0 2px 10px rgba(42, 35, 18, 0.05)",
         }}
       >
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm font-heading" style={{ backgroundColor: "var(--brand-primary)", color: "var(--rust-text)" }}>
-            {tableNumber || "T"}
-          </div>
-          <div>
-            <span className="font-heading text-base font-bold tracking-tight block leading-tight" style={{ color: "var(--ink)" }}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          {branding?.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={restaurantName}
+              className="w-9 h-9 rounded-xl object-cover shadow-xs border flex-shrink-0"
+              style={{ borderColor: "var(--hairline)" }}
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shadow-sm font-heading flex-shrink-0" style={{ backgroundColor: "var(--brand-primary)", color: "var(--rust-text)" }}>
+              {tableNumber || "T"}
+            </div>
+          )}
+          <div className="min-w-0">
+            <span className="font-heading text-base font-bold tracking-tight block leading-tight truncate" style={{ color: "var(--ink)" }}>
               {restaurantName}
             </span>
-            <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: "var(--ink-soft)" }}>
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Table {tableNumber} · Live Station</span>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium truncate" style={{ color: "var(--ink-soft)" }}>
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+              <span className="truncate">{branding?.tagline ? branding.tagline : `Table ${tableNumber} · Live Station`}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {/* Quick theme toggle */}
           <button
             type="button"
             onClick={() => {
               triggerHaptic(8);
-              setTheme(theme === "amber" ? "crimson" : "amber");
+              const themes: RestaurantThemeType[] = ["amber", "saffron", "crimson", "emerald", "charcoal"];
+              const nextIdx = (themes.indexOf(theme) + 1) % themes.length;
+              setTheme(themes[nextIdx]);
             }}
-            title="Switch theme palette"
+            title={`Current theme: ${theme}. Click to switch theme palette.`}
             className="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer transition-transform active:scale-95 shadow-sm"
             style={{
-              backgroundColor: theme === "amber" ? "#2A2312" : "#741A2F",
+              backgroundColor: "var(--paper-dim)",
               borderColor: "var(--hairline)",
             }}
           >
-            <span className="text-[13px]">{theme === "amber" ? "👑" : "✨"}</span>
+            <span className="text-[13px]">
+              {theme === "amber" ? "👑" : theme === "saffron" ? "🔥" : theme === "crimson" ? "🍷" : theme === "emerald" ? "🌿" : "⚡"}
+            </span>
           </button>
 
           {/* Call Waiter Buzzer Button */}
