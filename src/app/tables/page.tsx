@@ -6,6 +6,8 @@ import QRCode from "qrcode";
 import { getTableAccessCode } from "@/lib/utils/table-code";
 import ShareMenuModal from "@/components/ShareMenuModal";
 import FoodChefLoader from "@/components/FoodChefLoader";
+import AdminNavigation from "@/components/AdminNavigation";
+import type { RestaurantFeatures } from "@/lib/platform/state";
 
 type TableData = {
   id: string;
@@ -92,6 +94,7 @@ export const STANDEE_PRESETS = [
 export default function TablesManagementPage() {
   const [tables, setTables] = useState<TableData[]>([]);
   const [restaurantName, setRestaurantName] = useState<string>("Order Desk");
+  const [features, setFeatures] = useState<RestaurantFeatures | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedChit, setSelectedChit] = useState<TableData | null>(null);
@@ -145,6 +148,7 @@ export default function TablesManagementPage() {
       if (res.ok) {
         setTables(data.tables || []);
         if (data.restaurant?.name) setRestaurantName(data.restaurant.name);
+        if (data.features) setFeatures(data.features);
       }
     } catch {
       // Keep running state
@@ -159,6 +163,7 @@ export default function TablesManagementPage() {
         if (!isMounted || !data) return;
         setTables(data.tables || []);
         if (data.restaurant?.name) setRestaurantName(data.restaurant.name);
+        if (data.features) setFeatures(data.features);
         setIsLoading(false);
       })
       .catch((err) => {
@@ -313,90 +318,16 @@ export default function TablesManagementPage() {
         }
       `}</style>
 
-      {/* Dark Sidebar */}
-      <aside className="w-full md:w-64 flex-shrink-0 flex flex-col justify-between p-5 bg-slate-900/80 border-r border-slate-800/80 backdrop-blur-xl">
-        <div>
-          {/* Brand Header */}
-          <div className="flex items-center justify-between mb-8 pb-5 border-b border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🍽️</span>
-                <h1 className="font-extrabold text-lg tracking-tight text-white bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent">
-                  Order Desk
-                </h1>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium truncate max-w-[190px] mt-0.5">
-                {restaurantName}
-              </p>
-            </div>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-950/60 border border-amber-700/50 text-amber-400 rounded font-semibold">
-              POS
-            </span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1.5 text-xs font-semibold">
-            <Link
-              href="/"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>📊</span>
-              <span>Floor Overview</span>
-            </Link>
-
-            <Link
-              href="/tables"
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/40 text-amber-300 font-bold shadow-sm"
-            >
-              <div className="flex items-center gap-2.5">
-                <span>🪑</span>
-                <span>Floor Layout &amp; QR</span>
-              </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                {tables.length} tables
-              </span>
-            </Link>
-
-            <Link
-              href="/kitchen"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>👨‍🍳</span>
-              <span>Kitchen Rail (KDS)</span>
-            </Link>
-
-            <Link
-              href="/menu"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>📖</span>
-              <span>Menu &amp; Stock</span>
-            </Link>
-
-            <Link
-              href="/staff"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>👥</span>
-              <span>Staff &amp; Access</span>
-            </Link>
-          </nav>
-        </div>
-
-        {/* Back Link */}
-        <div className="pt-4 border-t border-slate-800/80">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors"
-          >
-            <span>←</span>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-      </aside>
+      {/* Universal Responsive Navigation (Desktop Sidebar / Mobile Top & Bottom Bar) */}
+      <AdminNavigation
+        currentTab="tables"
+        restaurantName={restaurantName}
+        totalTablesCount={tables.length}
+        mobileNavStyle={features?.mobileNavStyle || "bottom_bar"}
+      />
 
       {/* Main Content Workspace */}
-      <main className="flex-1 p-5 md:p-8 overflow-y-auto space-y-6">
+      <main className="flex-1 p-4 sm:p-5 md:p-8 overflow-y-auto space-y-6 pb-24 md:pb-8">
         {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
@@ -511,13 +442,15 @@ export default function TablesManagementPage() {
         {/* ============================================================ */}
         {selectedChit && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
             onClick={() => setSelectedChit(null)}
           >
             <div
-              className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-5 sm:p-7 text-slate-100 animate-in fade-in zoom-in-95 max-h-[95vh] overflow-y-auto"
+              className="w-full sm:max-w-4xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 sm:p-7 text-slate-100 animate-in fade-in zoom-in-95 max-h-[92vh] sm:max-h-[95vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Mobile sheet drag handle */}
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-3 sm:hidden shrink-0" />
               {/* Modal Top Bar */}
               <div className="flex justify-between items-start pb-4 mb-5 border-b border-slate-800">
                 <div>
@@ -943,13 +876,14 @@ export default function TablesManagementPage() {
         {/* Modal: Add Table Station */}
         {isAddingTable && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm"
             onClick={() => setIsAddingTable(false)}
           >
             <div
-              className="w-full max-w-xs p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4"
+              className="w-full sm:max-w-xs p-5 sm:p-6 rounded-t-3xl sm:rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="flex justify-between items-start pb-2 border-b border-slate-800">
                 <h3 className="text-base font-black text-white">Add Table Station</h3>
                 <button

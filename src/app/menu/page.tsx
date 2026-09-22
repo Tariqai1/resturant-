@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import ShareMenuModal, { ShareMenuTable } from "@/components/ShareMenuModal";
+import AdminNavigation from "@/components/AdminNavigation";
+import type { RestaurantFeatures } from "@/lib/platform/state";
 
 type Category = {
   id: string;
@@ -43,6 +45,7 @@ export default function MenuManagementPage() {
   const [stockFilter, setStockFilter] = useState<"all" | "instock" | "soldout">("all");
   const [onlySpecials, setOnlySpecials] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [features, setFeatures] = useState<RestaurantFeatures | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -110,6 +113,7 @@ export default function MenuManagementPage() {
         setItems(data.items || []);
         if (data.restaurantName) setRestaurantName(data.restaurantName);
         if (data.tables) setTables(data.tables);
+        if (data.features) setFeatures(data.features);
       }
     } catch {
       // Keep state
@@ -118,6 +122,10 @@ export default function MenuManagementPage() {
 
   useEffect(() => {
     let isMounted = true;
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setViewMode("cards");
+    }
+
     fetch("/api/menu")
       .then(async (res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -126,6 +134,12 @@ export default function MenuManagementPage() {
         setItems(data.items || []);
         if (data.restaurantName) setRestaurantName(data.restaurantName);
         if (data.tables) setTables(data.tables);
+        if (data.features) {
+          setFeatures(data.features);
+          if (data.features.autoMobileCards !== false && typeof window !== "undefined" && window.innerWidth < 768) {
+            setViewMode("cards");
+          }
+        }
         if (data.categories?.[0]?.id) {
           setFormData((prev) => ({ ...prev, categoryId: data.categories[0].id }));
         }
@@ -531,90 +545,16 @@ export default function MenuManagementPage() {
         </div>
       )}
 
-      {/* Dark Sidebar */}
-      <aside className="w-full md:w-64 flex-shrink-0 flex flex-col justify-between p-5 bg-slate-900/80 border-r border-slate-800/80 backdrop-blur-xl">
-        <div>
-          {/* Brand Header */}
-          <div className="flex items-center justify-between mb-8 pb-5 border-b border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🍽️</span>
-                <h1 className="font-extrabold text-lg tracking-tight text-white bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent">
-                  Order Desk
-                </h1>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium truncate max-w-[190px] mt-0.5">
-                {restaurantName}
-              </p>
-            </div>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-amber-950/60 border border-amber-700/50 text-amber-400 rounded font-semibold">
-              POS
-            </span>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1.5 text-xs font-semibold">
-            <Link
-              href="/"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>📊</span>
-              <span>Floor Overview</span>
-            </Link>
-
-            <Link
-              href="/tables"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>🪑</span>
-              <span>Floor Layout &amp; QR</span>
-            </Link>
-
-            <Link
-              href="/kitchen"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>👨‍🍳</span>
-              <span>Kitchen Rail (KDS)</span>
-            </Link>
-
-            <Link
-              href="/menu"
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/40 text-amber-300 font-bold shadow-sm"
-            >
-              <div className="flex items-center gap-2.5">
-                <span>📖</span>
-                <span>Menu &amp; Stock</span>
-              </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 border border-amber-500/30">
-                {items.length}
-              </span>
-            </Link>
-
-            <Link
-              href="/staff"
-              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <span>👥</span>
-              <span>Staff &amp; Access</span>
-            </Link>
-          </nav>
-        </div>
-
-        {/* Back Link */}
-        <div className="pt-4 border-t border-slate-800/80">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-amber-400 transition-colors"
-          >
-            <span>←</span>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-      </aside>
+      {/* Universal Responsive Navigation (Desktop Sidebar / Mobile Top & Bottom Bar) */}
+      <AdminNavigation
+        currentTab="menu"
+        restaurantName={restaurantName}
+        totalMenuItemsCount={items.length}
+        mobileNavStyle={features?.mobileNavStyle || "bottom_bar"}
+      />
 
       {/* Main Content Area */}
-      <main className="flex-1 p-5 md:p-8 overflow-y-auto space-y-6">
+      <main className="flex-1 p-4 sm:p-5 md:p-8 overflow-y-auto space-y-6 pb-24 md:pb-8">
         {/* Top Header */}
         <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
@@ -1249,18 +1189,21 @@ export default function MenuManagementPage() {
         )}
 
         {/* ============================================================ */}
-        {/* MODAL 1: ADD NEW DISH                                        */}
+        {/* MODAL 1: ADD NEW DISH - Responsive Mobile Bottom Sheet Drawer */}
         {/* ============================================================ */}
         {isAddingItem && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm"
             onClick={() => setIsAddingItem(false)}
           >
             <div
-              className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto"
+              className="w-full sm:max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden text-slate-100"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-start pb-4 mb-4 border-b border-slate-800">
+              {/* Mobile sheet drag handle */}
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+
+              <div className="flex justify-between items-start px-5 sm:px-6 pt-2 sm:pt-5 pb-3 border-b border-slate-800 shrink-0">
                 <div>
                   <h3 className="text-lg font-black text-white">Add New Dish</h3>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -1276,12 +1219,13 @@ export default function MenuManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddItem} className="space-y-4 text-xs">
-                {/* Name */}
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Dish Name *
-                  </label>
+              <form onSubmit={handleAddItem} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 text-xs">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Dish Name *
+                    </label>
                   <input
                     type="text"
                     required
@@ -1489,8 +1433,10 @@ export default function MenuManagementPage() {
                   </div>
                 </div>
 
-                {/* Footer Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+                </div>
+
+                {/* Sticky Footer Buttons */}
+                <div className="flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 bg-slate-950/90 border-t border-slate-800 shrink-0 sticky bottom-0">
                   <button
                     type="button"
                     onClick={() => setIsAddingItem(false)}
@@ -1512,18 +1458,21 @@ export default function MenuManagementPage() {
         )}
 
         {/* ============================================================ */}
-        {/* MODAL 2: EDIT DISH DETAILS                                  */}
+        {/* MODAL 2: EDIT DISH DETAILS - Responsive Mobile Bottom Sheet  */}
         {/* ============================================================ */}
         {editingItem && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm"
             onClick={() => setEditingItem(null)}
           >
             <div
-              className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto"
+              className="w-full sm:max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[90vh] overflow-hidden text-slate-100"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex justify-between items-start pb-4 mb-4 border-b border-slate-800">
+              {/* Mobile sheet drag handle */}
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+
+              <div className="flex justify-between items-start px-5 sm:px-6 pt-2 sm:pt-5 pb-3 border-b border-slate-800 shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-amber-400 text-base">✏️</span>
@@ -1542,12 +1491,13 @@ export default function MenuManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
-                {/* Name */}
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">
-                    Dish Name *
-                  </label>
+              <form onSubmit={handleSaveEdit} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 text-xs">
+                  {/* Name */}
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">
+                      Dish Name *
+                    </label>
                   <input
                     type="text"
                     required
@@ -1747,7 +1697,10 @@ export default function MenuManagementPage() {
                 </div>
 
                 {/* Footer Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+                </div>
+
+                {/* Sticky Footer Buttons */}
+                <div className="flex items-center justify-end gap-2.5 px-5 sm:px-6 py-3.5 bg-slate-950/90 border-t border-slate-800 shrink-0 sticky bottom-0">
                   <button
                     type="button"
                     onClick={() => setEditingItem(null)}
@@ -1773,13 +1726,14 @@ export default function MenuManagementPage() {
         {/* ============================================================ */}
         {deletingItem && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
             onClick={() => setDeletingItem(null)}
           >
             <div
-              className="w-full max-w-md bg-slate-900 border border-rose-800/80 rounded-2xl shadow-2xl p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4"
+              className="w-full sm:max-w-md bg-slate-900 border border-rose-800/80 rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="flex items-center gap-3 text-rose-400">
                 <div className="w-10 h-10 rounded-xl bg-rose-950/60 border border-rose-800/80 flex items-center justify-center text-xl">
                   🗑️
@@ -1846,13 +1800,14 @@ export default function MenuManagementPage() {
         {/* ============================================================ */}
         {isAddingCategory && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm"
             onClick={() => setIsAddingCategory(false)}
           >
             <div
-              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4"
+              className="w-full sm:max-w-md bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="flex justify-between items-start pb-3 border-b border-slate-800">
                 <div>
                   <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -1914,13 +1869,14 @@ export default function MenuManagementPage() {
         {/* ============================================================ */}
         {isManagingCategories && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm"
             onClick={() => setIsManagingCategories(false)}
           >
             <div
-              className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4 max-h-[85vh] overflow-y-auto"
+              className="w-full sm:max-w-lg bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-100 animate-in fade-in zoom-in-95 space-y-4 max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="flex justify-between items-start pb-3 border-b border-slate-800">
                 <div>
                   <h3 className="text-base font-black text-white flex items-center gap-2">

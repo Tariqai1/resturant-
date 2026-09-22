@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ShareMenuModal from "@/components/ShareMenuModal";
+import AdminNavigation from "@/components/AdminNavigation";
+import type { RestaurantFeatures } from "@/lib/platform/state";
 
 type DashboardTable = {
   id: string;
@@ -118,9 +120,9 @@ export default function Home() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [theme, setTheme] = useState<"amber" | "crimson">("amber");
+  const [features, setFeatures] = useState<RestaurantFeatures | null>(null);
 
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     todayRevenue: 0,
@@ -267,6 +269,7 @@ export default function Home() {
         if (data.isSuperAdmin !== undefined) setIsSuperAdmin(data.isSuperAdmin);
         if (data.metrics) setMetrics(data.metrics);
         if (data.theme) setTheme(data.theme);
+        if (data.features) setFeatures(data.features);
         if (data.bestsellers) setBestsellers(data.bestsellers);
         if (data.kitchenTickets) setKitchenTickets(data.kitchenTickets);
         if (data.waiterCalls) {
@@ -295,6 +298,8 @@ export default function Home() {
         if (data.user) setCurrentUser(data.user);
         if (data.isSuperAdmin !== undefined) setIsSuperAdmin(data.isSuperAdmin);
         if (data.metrics) setMetrics(data.metrics);
+        if (data.theme) setTheme(data.theme);
+        if (data.features) setFeatures(data.features);
         if (data.bestsellers) {
           setBestsellers(data.bestsellers);
           if (data.bestsellers.length > 0) {
@@ -620,162 +625,23 @@ export default function Home() {
         </div>
       )}
 
-      {/* Dark Cast-Iron Restaurant Sidebar */}
-      <aside
-        className="w-full md:w-60 flex-shrink-0 flex flex-col justify-between p-5"
-        style={{
-          backgroundColor: "var(--dark-surface)",
-          borderRight: "1px solid rgba(220, 209, 183, 0.15)",
-          color: "#FAF6EC",
-        }}
-      >
-        <div>
-          {/* Restaurant Brand Header */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-stone-800">
-            <div>
-              <h1 className="font-heading text-xl font-bold tracking-wide" style={{ color: "#FAF6EC" }}>
-                Order Desk
-              </h1>
-              <p className="text-xs truncate max-w-[170px]" style={{ color: "#9E9382" }}>
-                {activeRestaurantName}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="md:hidden p-1 text-stone-400 hover:text-white"
-              onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            >
-              ☰
-            </button>
-          </div>
-
-          {/* Dynamic Restaurant Theme Pill Switcher */}
-          <div className="mb-5 p-2 rounded-lg bg-stone-900/80 border border-stone-800/80">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1.5 flex items-center justify-between">
-              <span>Brand Theme</span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold" style={{ backgroundColor: theme === "amber" ? "#FFBE0B" : "#741A2F", color: theme === "amber" ? "#2A2312" : "#FFFFFF" }}>
-                {theme === "amber" ? "Amber Gold" : "Velvet Crimson"}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleToggleTheme("amber")}
-                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${theme === "amber" ? "bg-amber-400/20 text-amber-300 border border-amber-400/50" : "text-stone-400 hover:text-stone-200 border border-transparent"}`}
-              >
-                <span className="w-2.5 h-2.5 rounded-full bg-[#FFBE0B] shrink-0 border border-stone-900 shadow-sm" />
-                <span className="truncate">Amber</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleToggleTheme("crimson")}
-                className={`flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-semibold transition-all cursor-pointer ${theme === "crimson" ? "bg-rose-950/60 text-rose-300 border border-rose-600/50" : "text-stone-400 hover:text-stone-200 border border-transparent"}`}
-              >
-                <span className="w-2.5 h-2.5 rounded-full bg-[#741A2F] shrink-0 border border-rose-300/40 shadow-sm" />
-                <span className="truncate">Crimson</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Navigation Items (No arrows, clear intent) */}
-          <nav className={`space-y-1 text-xs font-medium ${mobileNavOpen ? "block" : "hidden md:block"}`}>
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-3 py-2 rounded font-semibold transition-colors"
-              style={{
-                backgroundColor: "rgba(193, 101, 44, 0.18)",
-                color: "var(--rust)",
-                border: "1px solid rgba(193, 101, 44, 0.35)",
-              }}
-            >
-              <span>Floor overview</span>
-            </Link>
-
-            <Link
-              href="/tables"
-              className="flex items-center justify-between px-3 py-2 rounded transition-colors hover:bg-stone-900"
-              style={{ color: "#D1C7B7" }}
-            >
-              <span>Floor layout</span>
-              <span
-                className="font-receipt text-[11px] px-1.5 py-0.5 rounded font-bold"
-                style={{ backgroundColor: "rgba(193, 101, 44, 0.2)", color: "var(--rust)" }}
-              >
-                {occupiedCount} active
-              </span>
-            </Link>
-
-            <Link
-              href="/kitchen"
-              className="flex items-center justify-between px-3 py-2 rounded transition-colors hover:bg-stone-900"
-              style={{ color: "#D1C7B7" }}
-            >
-              <span>Kitchen rail</span>
-              <span
-                className="font-receipt text-[11px] px-1.5 py-0.5 rounded font-bold"
-                style={{ backgroundColor: "rgba(168, 65, 47, 0.2)", color: "var(--brick)" }}
-              >
-                {kitchenTickets.filter((t) => t.status !== "SERVED").length} pending
-              </span>
-            </Link>
-
-            <Link
-              href="/menu"
-              className="flex items-center px-3 py-2 rounded transition-colors hover:bg-stone-900"
-              style={{ color: "#D1C7B7" }}
-            >
-              <span>Menu and stock</span>
-            </Link>
-
-            {/* Role-guarded: Only owner, manager, admin see staff */}
-            {isOwnerOrManager && (
-              <Link
-                href="/staff"
-                className="flex items-center px-3 py-2 rounded transition-colors hover:bg-stone-900"
-                style={{ color: "#D1C7B7" }}
-              >
-                <span>Staff and roles</span>
-              </Link>
-            )}
-
-            {isSuperAdmin && (
-              <Link
-                href="/super-admin"
-                className="flex items-center px-3 py-2 rounded transition-colors border border-amber-800/40 bg-amber-950/20 text-amber-300"
-              >
-                <span>Super admin platform</span>
-              </Link>
-            )}
-          </nav>
-        </div>
-
-        {/* Station User & Sign Out */}
-        <div className="pt-4 border-t border-stone-800">
-          <div className="flex items-center justify-between text-xs">
-            <div>
-              <div className="font-semibold" style={{ color: "#FAF6EC" }}>
-                {currentUser?.name || "Floor staff"}
-              </div>
-              <div className="text-[11px] capitalize" style={{ color: "#9E9382" }}>
-                {currentUser?.role || "staff"}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className="px-2 py-1 rounded text-xs hover:bg-stone-800 cursor-pointer"
-              style={{ color: "#C4B9A8" }}
-              title="Sign out of station"
-            >
-              {isSigningOut ? "..." : "Sign out"}
-            </button>
-          </div>
-        </div>
-      </aside>
+      {/* Universal Responsive Navigation (Desktop Sidebar / Mobile Top & Bottom Bar) */}
+      <AdminNavigation
+        currentTab="floor"
+        restaurantName={activeRestaurantName}
+        currentUser={currentUser}
+        occupiedTablesCount={occupiedCount}
+        totalTablesCount={floorTables.length}
+        pendingKitchenCount={kitchenTickets.filter((t) => t.status !== "SERVED").length}
+        isSuperAdmin={isSuperAdmin}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        onSignOut={handleSignOut}
+        mobileNavStyle={features?.mobileNavStyle || "bottom_bar"}
+      />
 
       {/* Main Floor Workspace */}
-      <main className="flex-1 p-5 md:p-8 overflow-y-auto space-y-6" style={{ backgroundColor: "var(--paper)" }}>
+      <main className="flex-1 p-4 sm:p-5 md:p-8 overflow-y-auto space-y-6 pb-24 md:pb-8" style={{ backgroundColor: "var(--paper)" }}>
         {/* Top Operational Bar */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
           <div>
@@ -1213,12 +1079,11 @@ export default function Home() {
 
         return (
           <div
-            className="fixed inset-0 z-50 flex justify-end"
-            style={{ backgroundColor: "rgba(34, 29, 22, 0.45)" }}
+            className="fixed inset-0 z-50 flex flex-col justify-end md:flex-row md:justify-end bg-black/50 backdrop-blur-xs"
             onClick={() => setSelectedTable(null)}
           >
             <div
-              className="w-full max-w-md h-full p-6 flex flex-col justify-between overflow-y-auto"
+              className="w-full md:max-w-md max-h-[92vh] md:max-h-full h-auto md:h-full p-4 sm:p-6 flex flex-col justify-between overflow-y-auto rounded-t-3xl md:rounded-none shadow-2xl"
               style={{
                 backgroundColor: "var(--paper)",
                 borderLeft: "1px solid var(--hairline)",
@@ -1226,6 +1091,8 @@ export default function Home() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Drag handle for mobile */}
+              <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-2.5 md:hidden shrink-0" />
               <div>
                 {/* Drawer Header */}
                 <div className="flex justify-between items-start pb-4 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
@@ -1391,8 +1258,8 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-4 mt-4 border-t border-dashed space-y-2" style={{ borderColor: "var(--hairline)" }}>
+              {/* Action Buttons (Sticky at bottom on mobile) */}
+              <div className="pt-3 pb-safe border-t border-dashed space-y-2 shrink-0 bg-[var(--paper)] sticky bottom-0" style={{ borderColor: "var(--hairline)" }}>
                 {chitItems.length > 0 && (
                   <>
                     {/* Add Dishes Button (guarded) */}
@@ -1604,24 +1471,20 @@ export default function Home() {
         );
       })()}
 
-      {/* Modal: New Order Creation */}
+      {/* Modal: New Order Creation - Upgraded to Mobile Bottom Sheet with Sticky Dispatch */}
       {isNewOrderOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(34, 29, 22, 0.45)" }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-xs"
           onClick={() => setIsNewOrderOpen(false)}
         >
           <div
-            className="w-full max-w-md p-6 rounded"
-            style={{
-              backgroundColor: "var(--paper)",
-              border: "1px solid var(--hairline)",
-              boxShadow: "var(--shadow-lg)",
-              borderRadius: "5px",
-            }}
+            className="w-full sm:max-w-md bg-[var(--paper)] rounded-t-3xl sm:rounded-xl max-h-[90vh] sm:max-h-[85vh] flex flex-col shadow-2xl border border-[var(--hairline)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-start pb-3 mb-4 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
+            {/* Mobile Sheet Drag Handle */}
+            <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+
+            <div className="flex justify-between items-start px-5 py-3 sm:py-4 border-b border-dashed shrink-0" style={{ borderColor: "var(--hairline)" }}>
               <div>
                 <span className="text-xs font-semibold" style={{ color: "var(--rust)" }}>
                   Kitchen Order Dispatch
@@ -1633,19 +1496,19 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setIsNewOrderOpen(false)}
-                className="p-1 text-sm font-bold cursor-pointer"
-                style={{ color: "var(--ink-soft)" }}
+                className="p-1 text-stone-400 hover:text-stone-700 text-sm font-bold cursor-pointer rounded-full hover:bg-stone-100"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateOrderSubmit} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold mb-1" style={{ color: "var(--ink-soft)" }}>
-                    Station Table
-                  </label>
+            <form onSubmit={handleCreateOrderSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold mb-1" style={{ color: "var(--ink-soft)" }}>
+                      Station Table
+                    </label>
                   <select
                     value={orderTable}
                     onChange={(e) => setOrderTable(e.target.value)}
@@ -1835,20 +1698,21 @@ export default function Home() {
                   });
                 })()}
               </div>
+              </div>
 
-              {/* Cart Summary & Dispatch Button */}
+              {/* Cart Summary & Sticky Dispatch Button */}
               {(() => {
                 const cartList = Object.values(quickCart).filter((c) => c.qty > 0);
                 const totalQty = cartList.reduce((sum, c) => sum + c.qty, 0);
                 const totalAmount = cartList.reduce((sum, c) => sum + c.qty * c.item.price, 0);
 
                 return (
-                  <div className="pt-3 border-t border-dashed space-y-2.5" style={{ borderColor: "var(--hairline)" }}>
+                  <div className="p-4 bg-[var(--paper-dim)] border-t border-[var(--hairline)] shrink-0 space-y-2.5 sticky bottom-0">
                     <div className="flex justify-between items-baseline text-xs font-bold px-1">
                       <span className="text-stone-600">
                         {totalQty > 0 ? `${totalQty} item(s) selected` : "No items added"}
                       </span>
-                      <span className="font-receipt text-sm" style={{ color: "var(--rust)" }}>
+                      <span className="font-receipt text-sm font-black" style={{ color: "var(--rust)" }}>
                         Total: ₹{totalAmount.toLocaleString("en-IN")}
                       </span>
                     </div>
@@ -1857,14 +1721,14 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => setIsNewOrderOpen(false)}
-                        className="px-3.5 py-2 rounded text-xs font-medium cursor-pointer text-stone-600 hover:bg-stone-100"
+                        className="px-3.5 py-2 rounded text-xs font-semibold cursor-pointer text-stone-600 hover:bg-stone-200/60"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={totalQty === 0 || isQuickSubmitting}
-                        className="px-4 py-2 rounded text-xs font-bold cursor-pointer transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                        className="px-4 py-2.5 rounded text-xs font-bold cursor-pointer transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
                         style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)", borderRadius: "4px" }}
                       >
                         {isQuickSubmitting ? (

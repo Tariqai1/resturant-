@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStaffContext } from "@/lib/auth/staff-context";
-import { getDishSpecialTag, setDishSpecialTag } from "@/lib/platform/state";
+import { getDishSpecialTag, setDishSpecialTag, getRestaurantFeatures } from "@/lib/platform/state";
 
 export async function GET() {
   const supabase = await createClient();
@@ -56,6 +56,7 @@ export async function GET() {
     categories: categoriesResult.data ?? [],
     items: itemsWithTags,
     tables: tablesResult.data ?? [],
+    features: getRestaurantFeatures(staffContext.restaurantId),
   });
 }
 

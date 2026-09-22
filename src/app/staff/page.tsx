@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AdminNavigation from "@/components/AdminNavigation";
+import type { RestaurantFeatures } from "@/lib/platform/state";
 
 type StaffPermissions = {
   canEditOrders: boolean;
@@ -35,6 +37,7 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [restaurantName, setRestaurantName] = useState<string>("Order Desk");
   const [restaurantId, setRestaurantId] = useState<string>("");
+  const [features, setFeatures] = useState<RestaurantFeatures | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -93,6 +96,7 @@ export default function StaffPage() {
       setStaff(data.staff || []);
       if (data.restaurantName) setRestaurantName(data.restaurantName);
       if (data.restaurantId) setRestaurantId(data.restaurantId);
+      if (data.features) setFeatures(data.features);
     } catch (error: unknown) {
       setErrorMessage(error instanceof Error ? error.message : "Error loading staff");
     } finally {
@@ -253,85 +257,16 @@ export default function StaffPage() {
         </div>
       )}
 
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-5 flex flex-col justify-between flex-shrink-0">
-        <div>
-          <div className="flex items-center gap-3 mb-8 px-2 pt-2">
-            <div className="w-9 h-9 rounded-xl bg-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-950/40 font-extrabold text-sm">
-              OD
-            </div>
-            <div>
-              <h1 className="font-bold text-base tracking-tight text-white leading-tight">Order Desk</h1>
-              <p className="text-xs text-slate-400 font-medium truncate max-w-[140px]">{restaurantName}</p>
-            </div>
-          </div>
-
-          <nav className="space-y-1 text-xs font-medium">
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
-            >
-              <span>◈</span>
-              <span>Overview POS</span>
-            </Link>
-
-            <Link
-              href="/kitchen"
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
-            >
-              <div className="flex items-center gap-3">
-                <span>♨</span>
-                <span>Kitchen Rail (KDS)</span>
-              </div>
-              <span className="bg-orange-500/20 text-orange-400 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                Live
-              </span>
-            </Link>
-
-            <Link
-              href="/tables"
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
-            >
-              <span>▦</span>
-              <span>Floor Tables</span>
-            </Link>
-
-            <Link
-              href="/menu"
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-all"
-            >
-              <span>✦</span>
-              <span>Menu & Stock</span>
-            </Link>
-
-            <Link
-              href="/staff"
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-lg bg-orange-600/15 border border-orange-500/30 text-orange-400 font-semibold shadow-inner"
-            >
-              <div className="flex items-center gap-3">
-                <span>♧</span>
-                <span>Staff & Roles</span>
-              </div>
-              <span className="bg-orange-600 text-white text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">
-                {staff.length}
-              </span>
-            </Link>
-          </nav>
-        </div>
-
-        <div className="pt-4 border-t border-slate-800">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xs text-slate-400 hover:text-white px-3 py-2 rounded-lg hover:bg-slate-800/60 transition-colors"
-          >
-            <span>←</span>
-            <span>Back to Dashboard</span>
-          </Link>
-        </div>
-      </aside>
+      {/* Universal Responsive Navigation (Desktop Sidebar / Mobile Top & Bottom Bar) */}
+      <AdminNavigation
+        currentTab="staff"
+        restaurantName={restaurantName}
+        staffMembersCount={staff.length}
+        mobileNavStyle={features?.mobileNavStyle || "bottom_bar"}
+      />
 
       {/* Main Content Area */}
-      <main className="flex-1 bg-slate-950 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <main className="flex-1 bg-slate-950 p-4 sm:p-6 md:p-8 space-y-6 overflow-y-auto pb-24 md:pb-8">
         {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
@@ -572,9 +507,10 @@ export default function StaffPage() {
 
         {/* MODAL 1: ADD NEW STAFF MEMBER */}
         {isAddingStaff && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <div>
                   <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
                     NEW RECRUIT
@@ -589,7 +525,8 @@ export default function StaffPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddStaff} className="p-6 space-y-4">
+              <form onSubmit={handleAddStaff} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
                     Staff Full Name
@@ -695,18 +632,20 @@ export default function StaffPage() {
                   </label>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                </div>
+
+                <div className="flex items-center justify-end gap-2 p-4 bg-slate-950/80 border-t border-slate-800 shrink-0 sticky bottom-0">
                   <button
                     type="button"
                     onClick={() => setIsAddingStaff(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isSubmitting ? "Creating..." : "Save Staff Member"}
                   </button>
@@ -718,9 +657,10 @@ export default function StaffPage() {
 
         {/* MODAL 2: EDIT PERMISSIONS & ROLE */}
         {editingStaff && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+              <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <div>
                   <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
                     MODIFY ACCESS
@@ -735,7 +675,8 @@ export default function StaffPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSavePermissions} className="p-6 space-y-4">
+              <form onSubmit={handleSavePermissions} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
                     Assign Role
@@ -796,18 +737,20 @@ export default function StaffPage() {
                   </label>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                </div>
+
+                <div className="flex items-center justify-end gap-2 p-4 bg-slate-950/80 border-t border-slate-800 shrink-0 sticky bottom-0">
                   <button
                     type="button"
                     onClick={() => setEditingStaff(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-5 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50"
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {isSubmitting ? "Updating..." : "Save Changes"}
                   </button>
@@ -819,8 +762,9 @@ export default function StaffPage() {
 
         {/* MODAL 3: RESET PIN */}
         {resettingPinMember && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden">
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
               <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-mono text-orange-400 font-bold uppercase tracking-wider">
@@ -879,8 +823,9 @@ export default function StaffPage() {
 
         {/* MODAL 4: STAFF CREATED & WHATSAPP DISPATCH */}
         {staffSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="text-center space-y-1.5">
                 <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto text-xl shadow-lg">
                   🎉
@@ -972,8 +917,9 @@ export default function StaffPage() {
 
         {/* MODAL 5: KITCHEN DISPLAY SYSTEM DIRECT LINK */}
         {showKitchenModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-            <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+            <div className="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+              <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto sm:hidden shrink-0" />
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2.5">
                   <span className="text-xl">🍳</span>

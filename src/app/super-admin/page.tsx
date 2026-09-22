@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ShareMenuModal, { ShareMenuTable } from "@/components/ShareMenuModal";
+import type { RestaurantFeatures } from "@/lib/platform/state";
 
 type PlatformStats = {
   totalRestaurants: number;
@@ -28,15 +29,7 @@ type RestaurantFleetItem = {
   subscriptionStatus: "active" | "expired" | "cancelled";
   isArchived?: boolean;
   theme?: "amber" | "crimson";
-  features?: {
-    callWaiter: boolean;
-    prepTimeTracker: boolean;
-    customRequests: boolean;
-    tablePayUpi: boolean;
-    dishNotes: boolean;
-    smartUpsell: boolean;
-    feedbackReview: boolean;
-  };
+  features?: RestaurantFeatures;
   tables?: ShareMenuTable[];
   firstTableToken?: string | null;
   createdAt: string;
@@ -1999,6 +1992,196 @@ export default function SuperAdminPage() {
                       </div>
                     );
                   })}
+                </div>
+
+                {/* Mobile & Tablet UI/UX Controls Section */}
+                <div className="pt-3 border-t border-[#26201B] space-y-2.5">
+                  <div>
+                    <span className="font-mono text-[10px] text-[#D96B27] uppercase font-bold tracking-wider block">
+                      📱 Mobile &amp; Tablet UI/UX Architecture
+                    </span>
+                    <span className="text-[11px] text-[#A89F91]">
+                      Configure 1-thumb touch navigation, native bottom sheet drawers &amp; touch card views
+                    </span>
+                  </div>
+
+                  {/* 1. Mobile Navigation Style */}
+                  <div className="p-3 bg-[#12100E] border border-[#2D251F] rounded-xl space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <span>📱</span>
+                          <span>Mobile Navigation Style</span>
+                        </div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Choose how station managers navigate on phones (&lt; 768px)
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                        {editingRestaurant.features?.mobileNavStyle === "sidebar" ? "Drawer Menu" : "Bottom Tab Bar (Default)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingRestaurant({
+                            ...editingRestaurant,
+                            features: {
+                              ...(editingRestaurant.features || {
+                                callWaiter: true,
+                                prepTimeTracker: true,
+                                customRequests: true,
+                                tablePayUpi: true,
+                                dishNotes: true,
+                                smartUpsell: true,
+                                feedbackReview: true,
+                              }),
+                              mobileNavStyle: "bottom_bar",
+                            },
+                          })
+                        }
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          editingRestaurant.features?.mobileNavStyle !== "sidebar"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>⚡ Bottom Tab Bar</span>
+                          {editingRestaurant.features?.mobileNavStyle !== "sidebar" && <span className="text-[10px] text-[#D96B27]">✓ Active</span>}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          1-Thumb touch docked at bottom (Zomato/Toast POS style)
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingRestaurant({
+                            ...editingRestaurant,
+                            features: {
+                              ...(editingRestaurant.features || {
+                                callWaiter: true,
+                                prepTimeTracker: true,
+                                customRequests: true,
+                                tablePayUpi: true,
+                                dishNotes: true,
+                                smartUpsell: true,
+                                feedbackReview: true,
+                              }),
+                              mobileNavStyle: "sidebar",
+                            },
+                          })
+                        }
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          editingRestaurant.features?.mobileNavStyle === "sidebar"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>☰ Slide Drawer</span>
+                          {editingRestaurant.features?.mobileNavStyle === "sidebar" && <span className="text-[10px] text-[#D96B27]">✓ Active</span>}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          Top bar with hamburger slide-out sidebar sheet
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Mobile Bottom Sheet Drawers Switch */}
+                  <div
+                    onClick={() => {
+                      const cur = editingRestaurant.features || {
+                        callWaiter: true,
+                        prepTimeTracker: true,
+                        customRequests: true,
+                        tablePayUpi: true,
+                        dishNotes: true,
+                        smartUpsell: true,
+                        feedbackReview: true,
+                      };
+                      setEditingRestaurant({
+                        ...editingRestaurant,
+                        features: {
+                          ...cur,
+                          mobileSheetModals: cur.mobileSheetModals === false ? true : false,
+                        },
+                      });
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      editingRestaurant.features?.mobileSheetModals !== false
+                        ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                        : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">📲</span>
+                      <div>
+                        <div className="font-bold text-xs leading-snug">Native Bottom Sheet Modals</div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Convert modals to bottom sheet drawers with sticky action buttons (never hidden by keyboard)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                        editingRestaurant.features?.mobileSheetModals !== false ? "bg-[#D96B27] justify-end" : "bg-stone-800 justify-start"
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+
+                  {/* 3. Auto Mobile Cards Switch */}
+                  <div
+                    onClick={() => {
+                      const cur = editingRestaurant.features || {
+                        callWaiter: true,
+                        prepTimeTracker: true,
+                        customRequests: true,
+                        tablePayUpi: true,
+                        dishNotes: true,
+                        smartUpsell: true,
+                        feedbackReview: true,
+                      };
+                      setEditingRestaurant({
+                        ...editingRestaurant,
+                        features: {
+                          ...cur,
+                          autoMobileCards: cur.autoMobileCards === false ? true : false,
+                        },
+                      });
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      editingRestaurant.features?.autoMobileCards !== false
+                        ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                        : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">🖼️</span>
+                      <div>
+                        <div className="font-bold text-xs leading-snug">Auto Mobile Touch Cards</div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Auto-switch wide 8-column menu table to 1-tap touch cards on phone screens
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                        editingRestaurant.features?.autoMobileCards !== false ? "bg-[#D96B27] justify-end" : "bg-stone-800 justify-start"
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
                 </div>
               </div>
 

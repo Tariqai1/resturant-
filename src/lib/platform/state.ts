@@ -73,6 +73,9 @@ export type RestaurantFeatures = {
   dishNotes: boolean;         // ✏️ Special cooking instructions per dish
   smartUpsell: boolean;       // 💡 Smart pairing recommendations in cart
   feedbackReview: boolean;    // ⭐ 5-star Google review booster
+  mobileNavStyle?: "bottom_bar" | "sidebar"; // 📱 Mobile Navigation Style (Default: 'bottom_bar')
+  mobileSheetModals?: boolean; // 📲 Native Bottom Sheet Drawers for mobile forms (Default: true)
+  autoMobileCards?: boolean;  // 🖼️ Auto-switch from dense tables to touch cards on mobile (Default: true)
 };
 
 export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
@@ -83,6 +86,9 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   dishNotes: true,
   smartUpsell: true,
   feedbackReview: true,
+  mobileNavStyle: "bottom_bar",
+  mobileSheetModals: true,
+  autoMobileCards: true,
 };
 
 export type OrderPrepEstimate = {

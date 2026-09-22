@@ -121,15 +121,17 @@ export default function ShareMenuModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       style={{ backgroundColor: "rgba(34, 29, 22, 0.6)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-[#FAF6EC] border border-[#DCD1B7] rounded-lg shadow-2xl p-6 relative overflow-hidden max-h-[92vh] flex flex-col"
+        className="w-full sm:max-w-lg bg-[#FAF6EC] border border-[#DCD1B7] rounded-t-3xl sm:rounded-lg shadow-2xl p-5 sm:p-6 relative overflow-hidden max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
         style={{ color: "#2A2312" }}
       >
+        {/* Mobile sheet drag handle */}
+        <div className="w-12 h-1.5 bg-[#C5BBA4] rounded-full mx-auto mb-2.5 sm:hidden shrink-0" />
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-dashed border-[#DCD1B7]">
           <div>

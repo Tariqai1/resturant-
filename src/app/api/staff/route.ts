@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveStaffContext } from "@/lib/auth/staff-context";
-import { getStaffPermissions, setStaffPermissions } from "@/lib/platform/state";
+import { getStaffPermissions, setStaffPermissions, getRestaurantFeatures } from "@/lib/platform/state";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     restaurantId: targetRestaurantId,
     restaurantName: restaurantRes.data?.name || staffContext.restaurantName || "Order Desk",
     staff: staffWithPerms,
+    features: getRestaurantFeatures(targetRestaurantId),
   });
 }
 
