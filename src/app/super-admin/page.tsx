@@ -7,6 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import ShareMenuModal, { ShareMenuTable } from "@/components/ShareMenuModal";
 import type { RestaurantFeatures } from "@/lib/platform/state";
 
+const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
+  callWaiter: true,
+  prepTimeTracker: true,
+  customRequests: true,
+  tablePayUpi: true,
+  dishNotes: true,
+  smartUpsell: true,
+  feedbackReview: true,
+  mobileNavStyle: "bottom_bar",
+  mobileSheetModals: true,
+  autoMobileCards: true,
+};
+
 type PlatformStats = {
   totalRestaurants: number;
   activeRestaurants: number;
@@ -165,6 +178,21 @@ export default function SuperAdminPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Spotlight Command Palette State
+  const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
+  const [spotlightQuery, setSpotlightQuery] = useState("");
+
+  // Slide-Over Feature Cockpit State
+  const [cockpitResto, setCockpitResto] = useState<RestaurantFleetItem | null>(null);
+  const [isSavingCockpit, setIsSavingCockpit] = useState(false);
+  const [copiedCockpitLink, setCopiedCockpitLink] = useState(false);
+
+  // Bulk Multi-Restaurant Selection
+  const [selectedRestoIds, setSelectedRestoIds] = useState<string[]>([]);
+
+  // Mobile Pro Drawer State
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
   const fetchData = useCallback(() => {
     setLoading(true);
     setError(null);
@@ -233,12 +261,29 @@ export default function SuperAdminPage() {
     };
   }, []);
 
+  // Keyboard shortcut: Ctrl+K / Cmd+K for Spotlight Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSpotlightOpen((prev) => !prev);
+      }
+      if (e.key === "Escape") {
+        setIsSpotlightOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // Filter restaurants locally based on search
   const filteredRestaurants = restaurants.filter((r) => {
     const matchesSearch =
       !searchQuery ||
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.ownerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.ownerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.contactPhone && r.contactPhone.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (r.gstin && r.gstin.toLowerCase().includes(searchQuery.toLowerCase())) ||
       r.id.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -257,6 +302,201 @@ export default function SuperAdminPage() {
 
     return matchesSearch && matchesPlan && matchesStatus;
   });
+
+  // Spotlight search matches (instant filter by name, owner, phone, email)
+  const spotlightMatches = spotlightQuery.trim()
+    ? restaurants.filter(
+        (r) =>
+          r.name.toLowerCase().includes(spotlightQuery.toLowerCase()) ||
+          r.ownerName.toLowerCase().includes(spotlightQuery.toLowerCase()) ||
+          r.ownerEmail.toLowerCase().includes(spotlightQuery.toLowerCase()) ||
+          (r.contactPhone && r.contactPhone.includes(spotlightQuery)) ||
+          (r.gstin && r.gstin.toLowerCase().includes(spotlightQuery.toLowerCase())) ||
+          r.id.toLowerCase().includes(spotlightQuery.toLowerCase())
+      )
+    : restaurants.slice(0, 8);
+
+  // 1-Click Smart Presets
+  const DHABA_PRESET: RestaurantFeatures = {
+    callWaiter: false,
+    prepTimeTracker: false,
+    customRequests: true,
+    tablePayUpi: true,
+    dishNotes: true,
+    smartUpsell: true,
+    feedbackReview: false,
+    mobileNavStyle: "bottom_bar",
+    mobileSheetModals: true,
+    autoMobileCards: true,
+  };
+
+  const FINE_DINE_PRESET: RestaurantFeatures = {
+    callWaiter: true,
+    prepTimeTracker: true,
+    customRequests: true,
+    tablePayUpi: true,
+    dishNotes: true,
+    smartUpsell: true,
+    feedbackReview: true,
+    mobileNavStyle: "bottom_bar",
+    mobileSheetModals: true,
+    autoMobileCards: true,
+  };
+
+  const CAFE_PRESET: RestaurantFeatures = {
+    callWaiter: false,
+    prepTimeTracker: true,
+    customRequests: false,
+    tablePayUpi: true,
+    dishNotes: false,
+    smartUpsell: true,
+    feedbackReview: true,
+    mobileNavStyle: "bottom_bar",
+    mobileSheetModals: true,
+    autoMobileCards: true,
+  };
+
+  const ENTERPRISE_ALL_PRESET: RestaurantFeatures = {
+    callWaiter: true,
+    prepTimeTracker: true,
+    customRequests: true,
+    tablePayUpi: true,
+    dishNotes: true,
+    smartUpsell: true,
+    feedbackReview: true,
+    mobileNavStyle: "bottom_bar",
+    mobileSheetModals: true,
+    autoMobileCards: true,
+  };
+
+  // 1-Click Direct Feature Toggle (Optimistic Update)
+  const handleDirectToggleFeature = async (
+    restaurant: RestaurantFleetItem,
+    featureKey: keyof RestaurantFeatures,
+    overrideValue?: unknown
+  ) => {
+    const currentFeats = restaurant.features || DEFAULT_RESTAURANT_FEATURES;
+    const currentVal = currentFeats[featureKey];
+    let nextVal: unknown;
+    if (overrideValue !== undefined) {
+      nextVal = overrideValue;
+    } else if (featureKey === "mobileNavStyle") {
+      nextVal = currentVal === "sidebar" ? "bottom_bar" : "sidebar";
+    } else {
+      nextVal = !currentVal;
+    }
+
+    const nextFeatures: RestaurantFeatures = {
+      ...currentFeats,
+      [featureKey]: nextVal,
+    } as RestaurantFeatures;
+
+    // Optimistic UI update
+    setRestaurants((prev) =>
+      prev.map((item) => (item.id === restaurant.id ? { ...item, features: nextFeatures } : item))
+    );
+    if (cockpitResto?.id === restaurant.id) {
+      setCockpitResto((prev) => (prev ? { ...prev, features: nextFeatures } : null));
+    }
+
+    try {
+      const res = await fetch("/api/super-admin/restaurants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: restaurant.id,
+          features: nextFeatures,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to toggle feature");
+      showToast(`⚡ ${String(featureKey)} toggled for "${restaurant.name}"`);
+    } catch (err) {
+      fetchData();
+      showToast(err instanceof Error ? err.message : "Failed to toggle feature");
+    }
+  };
+
+  // Bulk Apply Features across multiple selected restaurants
+  const handleBulkApplyFeatures = async (features: RestaurantFeatures, label: string) => {
+    if (selectedRestoIds.length === 0) return;
+    const count = selectedRestoIds.length;
+
+    setRestaurants((prev) =>
+      prev.map((r) => (selectedRestoIds.includes(r.id) ? { ...r, features: { ...features } } : r))
+    );
+
+    try {
+      const res = await fetch("/api/super-admin/restaurants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedRestoIds,
+          features,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Bulk update failed");
+      showToast(`🎉 Applied ${label} to ${count} restaurants`);
+      setSelectedRestoIds([]);
+      fetchData();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Bulk update failed");
+      fetchData();
+    }
+  };
+
+  // Save Feature Cockpit
+  const handleSaveCockpit = async () => {
+    if (!cockpitResto) return;
+    setIsSavingCockpit(true);
+    try {
+      const res = await fetch("/api/super-admin/restaurants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: cockpitResto.id,
+          features: cockpitResto.features,
+          theme: cockpitResto.theme,
+          subscription_plan: cockpitResto.subscriptionPlan,
+          subscription_status: cockpitResto.subscriptionStatus,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save cockpit");
+      showToast(`Cockpit saved for "${cockpitResto.name}"!`);
+      fetchData();
+      setCockpitResto(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to save cockpit");
+    } finally {
+      setIsSavingCockpit(false);
+    }
+  };
+
+  // WhatsApp Setup Message generator
+  const getWhatsAppSetupUrl = (resto: RestaurantFleetItem) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const loginUrl = `${origin}/login?resto=${resto.id}&role=owner`;
+    const feats = resto.features || DEFAULT_RESTAURANT_FEATURES;
+
+    const activeList: string[] = [];
+    if (feats.tablePayUpi) activeList.push("💳 Direct Table UPI QR (Instant Settlement)");
+    if (feats.callWaiter) activeList.push("🛎️ Call Waiter & Staff Buzzer");
+    if (feats.dishNotes) activeList.push("✏️ Custom Cooking Instructions Per Dish");
+    if (feats.smartUpsell) activeList.push("💡 Smart Cart Pairing Upsell");
+    if (feats.feedbackReview) activeList.push("⭐ 5-Star Google Review Booster");
+    if (feats.prepTimeTracker) activeList.push("⏳ Live Kitchen Prep Countdown Timer");
+    if (feats.mobileNavStyle === "bottom_bar") activeList.push("⚡ Mobile Bottom Bar (Thumb Optimized)");
+    if (feats.autoMobileCards) activeList.push("🖼️ Touch Dish Cards for Mobile");
+
+    const text = `🎉 *Namaste ${resto.ownerName}! Welcome to OrderDesk*\n\nYour outlet *${resto.name}* is live with premium digital POS features:\n\n✨ *Active Features*:\n${activeList.map((f) => `• ${f}`).join("\n")}\n\n📱 *Manager POS Login Link*:\n${loginUrl}\n\n👤 *Owner*: ${resto.ownerName}\n📧 *Owner Email*: ${resto.ownerEmail}\n\nOpen this link on your phone or tablet to start taking orders!`;
+
+    const cleanPhone = (resto.contactPhone || "").replace(/\D/g, "");
+    return cleanPhone
+      ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  };
 
   // Filter activities
   const filteredActivities = activities.filter((act) => {
@@ -678,7 +918,7 @@ export default function SuperAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#12100E] text-[#EDE8DF] font-sans antialiased selection:bg-[#D96B27] selection:text-white">
+    <div className="min-h-screen bg-[#12100E] text-[#EDE8DF] font-sans antialiased selection:bg-[#D96B27] selection:text-white flex flex-col lg:flex-row">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#1F1A15] border border-[#D96B27] text-white px-5 py-3.5 rounded-lg shadow-2xl animate-fade-in text-sm font-medium">
@@ -687,51 +927,361 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      {/* Top Navigation Bar */}
-      <header className="border-b border-[#26201B] bg-[#181410]/95 backdrop-blur-md sticky top-0 z-30 px-6 py-3.5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D96B27] to-[#B35218] flex items-center justify-center shadow-lg shadow-[#D96B27]/20 border border-[#FF8A42]/30">
-            <i className="fa-solid fa-server text-white text-lg" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#D96B27]">Platform Command Deck</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#D96B27]/15 text-[#F38B47] border border-[#D96B27]/30">SUPER ADMIN</span>
+      {/* Super Admin Pro Sidebar (Desktop lg:flex) */}
+      <aside className="hidden lg:flex w-72 bg-[#14110E] border-r border-[#26201B] flex-col shrink-0 sticky top-0 h-screen overflow-y-auto justify-between p-4 z-30 select-none">
+        <div className="space-y-6">
+          {/* Brand Header */}
+          <div className="flex items-center gap-3 pb-4 border-b border-[#26201B]">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#D96B27] to-[#B35218] flex items-center justify-center shadow-lg shadow-[#D96B27]/20 border border-[#FF8A42]/30 shrink-0">
+              <i className="fa-solid fa-server text-white text-base" />
             </div>
-            <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-              Order Desk Multi-Tenant Control
-            </h1>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#D96B27]">Control Deck</span>
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-[#D96B27]/15 text-[#F38B47] border border-[#D96B27]/30">PRO</span>
+              </div>
+              <h2 className="text-sm font-bold text-white tracking-tight truncate">
+                Super Admin Console
+              </h2>
+            </div>
+          </div>
+
+          {/* Quick Platform Actions Hub */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOnboardError("");
+                setShowOnboardModal(true);
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#D96B27] to-[#B85418] hover:from-[#E3752F] hover:to-[#C65D1E] text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-[#D96B27]/20 border border-[#FF8A42]/30 transition-all cursor-pointer"
+            >
+              <i className="fa-solid fa-plus text-xs" />
+              <span>+ Onboard Restaurant</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsSpotlightOpen(true)}
+              className="w-full flex items-center justify-between px-3.5 py-2 bg-[#1B1612] hover:bg-[#241E18] text-[#A89F91] hover:text-white border border-[#2D251F] hover:border-[#D96B27]/50 rounded-xl text-xs font-mono transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <i className="fa-solid fa-magnifying-glass text-[#D96B27]" />
+                <span>Search Outlet...</span>
+              </div>
+              <kbd className="bg-[#12100E] border border-[#3A3129] px-1.5 py-0.5 rounded text-[9px] text-[#7D7466]">Ctrl K</kbd>
+            </button>
+          </div>
+
+          {/* Categorized Nav Sections */}
+          <nav className="space-y-4 text-xs font-medium">
+            {/* Section 1: Tenant Management */}
+            <div>
+              <div className="px-2 mb-1.5 font-mono text-[10px] font-bold text-[#8C8275] uppercase tracking-wider">
+                Tenant Operations
+              </div>
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("fleet")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "fleet"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-store text-xs" />
+                    <span>Tenant Fleet Registry</span>
+                  </div>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
+                      activeTab === "fleet" ? "bg-black/25 text-white" : "bg-[#241E18] text-[#8C8275]"
+                    }`}
+                  >
+                    {restaurants.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 2: Global Services */}
+            <div>
+              <div className="px-2 mb-1.5 font-mono text-[10px] font-bold text-[#8C8275] uppercase tracking-wider">
+                Platform Services
+              </div>
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("broadcast")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "broadcast"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-bullhorn text-xs" />
+                    <span>Global Broadcast</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+                      broadcastForm.active
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse"
+                        : "bg-stone-800 text-stone-400"
+                    }`}
+                  >
+                    {broadcastForm.active ? "LIVE" : "OFF"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("activity")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "activity"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-timeline text-xs" />
+                    <span>Activity &amp; Audit Logs</span>
+                  </div>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
+                      activeTab === "activity" ? "bg-black/25 text-white" : "bg-[#241E18] text-[#8C8275]"
+                    }`}
+                  >
+                    {activities.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Section 3: Quick Outlet Cockpit Switcher */}
+            {restaurants.length > 0 && (
+              <div>
+                <div className="px-2 mb-1.5 font-mono text-[10px] font-bold text-[#8C8275] uppercase tracking-wider flex items-center justify-between">
+                  <span>Fast Cockpit Access</span>
+                  <span className="text-[9px] text-[#D96B27]">1-Tap</span>
+                </div>
+                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                  {restaurants.slice(0, 5).map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setCockpitResto(r)}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-[#A89F91] hover:text-white hover:bg-[#1E1914] transition-colors cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span>{r.theme === "crimson" ? "🍷" : "🥘"}</span>
+                        <span className="truncate font-semibold text-white/90 group-hover:text-[#D96B27]">{r.name}</span>
+                      </div>
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#241E18] text-[#8C8275] shrink-0">
+                        {r.subscriptionPlan}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </nav>
+        </div>
+
+        {/* Sidebar Footer: Health Widget & User Profile */}
+        <div className="space-y-3 pt-4 border-t border-[#26201B]">
+          {/* Realtime Node Status */}
+          <div className="p-3 bg-[#181410] border border-[#26201B] rounded-xl space-y-1.5 text-[11px] font-mono">
+            <div className="flex items-center justify-between text-[#8C8275]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>DB Realtime Node</span>
+              </span>
+              <span className="text-emerald-400 font-bold">100% ONLINE</span>
+            </div>
+            <div className="flex items-center justify-between text-white font-bold text-xs pt-1 border-t border-[#221C17]">
+              <span className="text-[#8C8275] text-[10px]">TOTAL GMV:</span>
+              <span className="text-[#F38B47]">₹{(stats?.totalGmv || 0).toLocaleString("en-IN")}</span>
+            </div>
+          </div>
+
+          {/* Quick Exit Links */}
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1E1914] hover:bg-[#28211B] text-[#D8D0C3] border border-[#302821] py-2 rounded-lg text-xs font-semibold transition-colors"
+            >
+              <i className="fa-solid fa-arrow-left text-[#8C8275] text-xs" />
+              <span>Floor POS</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={handleSuperAdminSignOut}
+              className="p-2 bg-[#1E1914] hover:bg-red-950/60 hover:text-red-300 hover:border-red-800 text-[#8C8275] border border-[#302821] rounded-lg text-xs transition-colors cursor-pointer"
+              title="Sign Out of Super Admin"
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket" />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Top Header (lg:hidden) */}
+      <header className="lg:hidden border-b border-[#26201B] bg-[#181410]/95 backdrop-blur-md sticky top-0 z-30 px-4 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMobileDrawerOpen((prev) => !prev)}
+            className="p-2 bg-[#221C17] border border-[#302821] rounded-lg text-white text-sm"
+          >
+            <i className={`fa-solid ${mobileDrawerOpen ? "fa-xmark" : "fa-bars"}`} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-[#D96B27] flex items-center justify-center text-white text-xs">
+              <i className="fa-solid fa-server" />
+            </div>
+            <div>
+              <div className="text-[10px] font-mono font-bold text-[#D96B27] uppercase">Super Admin</div>
+              <div className="text-xs font-bold text-white">Order Desk Console</div>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Heartbeat Badge */}
-          <div className="hidden sm:flex items-center gap-2 bg-[#1F1A15] border border-[#2E2721] px-3 py-1.5 rounded-full text-xs font-mono text-[#A89F91]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>GLOBAL REALTIME ACTIVE</span>
-          </div>
-
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsSpotlightOpen(true)}
+            className="p-2 bg-[#221C17] border border-[#302821] rounded-lg text-[#D96B27] text-xs"
+            title="Search (Ctrl+K)"
+          >
+            <i className="fa-solid fa-magnifying-glass" />
+          </button>
           <Link
             href="/"
-            className="flex items-center gap-2 bg-[#221C17] hover:bg-[#2A231C] text-[#D8D0C3] border border-[#3A3129] px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            className="p-2 bg-[#221C17] border border-[#302821] rounded-lg text-stone-300 text-xs"
+            title="Floor POS"
           >
-            <i className="fa-solid fa-arrow-left text-[#8C8275]" />
-            <span>Go to Floor POS</span>
+            <i className="fa-solid fa-arrow-left" />
           </Link>
-
-          <button
-            onClick={handleSuperAdminSignOut}
-            className="flex items-center gap-2 bg-[#221C17] hover:bg-red-950/60 hover:text-red-300 hover:border-red-800 text-[#8C8275] border border-[#3A3129] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-            title="Sign out of Super Admin"
-          >
-            <i className="fa-solid fa-arrow-right-from-bracket" />
-            <span>Sign Out</span>
-          </button>
         </div>
       </header>
 
-      {/* Main Command Deck Canvas */}
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+      {/* Mobile Slide-Out Drawer (lg:hidden) */}
+      {mobileDrawerOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-xs flex"
+          onClick={() => setMobileDrawerOpen(false)}
+        >
+          <div
+            className="w-72 bg-[#14110E] h-full border-r border-[#2D251F] p-4 flex flex-col justify-between overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#26201B]">
+                <span className="font-bold text-white text-xs">Super Admin Menu</span>
+                <button
+                  type="button"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className="p-1 text-stone-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    setOnboardError("");
+                    setShowOnboardModal(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 bg-[#D96B27] text-white py-2 rounded-lg text-xs font-bold"
+                >
+                  <i className="fa-solid fa-plus text-xs" />
+                  <span>+ Onboard Restaurant</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    setIsSpotlightOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#1B1612] text-stone-300 rounded-lg text-xs font-mono border border-stone-800"
+                >
+                  <div className="flex items-center gap-2">
+                    <i className="fa-solid fa-magnifying-glass text-[#D96B27]" />
+                    <span>Search Outlet</span>
+                  </div>
+                  <span>Ctrl K</span>
+                </button>
+              </div>
+
+              <nav className="space-y-1 text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("fleet");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "fleet" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Tenant Fleet Registry</span>
+                  <span className="text-[10px] font-mono">{restaurants.length}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("broadcast");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "broadcast" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Global Broadcast</span>
+                  <span className="text-[9px] font-mono">{broadcastForm.active ? "LIVE" : "OFF"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("activity");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "activity" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Activity &amp; Audit Logs</span>
+                  <span className="text-[10px] font-mono">{activities.length}</span>
+                </button>
+              </nav>
+            </div>
+
+            <div className="pt-3 border-t border-[#26201B]">
+              <button
+                type="button"
+                onClick={handleSuperAdminSignOut}
+                className="w-full py-2 bg-red-950/40 text-red-300 border border-red-800/40 rounded-lg text-xs font-bold"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        {/* Main Command Deck Canvas */}
+        <main className="max-w-7xl w-full mx-auto px-4 md:px-8 py-6 md:py-8 space-y-8">
         {/* Error Banner */}
         {error && (
           <div className="bg-red-950/40 border border-red-800/60 text-red-200 px-5 py-4 rounded-xl flex items-center justify-between">
@@ -962,25 +1512,40 @@ export default function SuperAdminPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-[#14110E] text-[#8C8275] uppercase font-mono border-b border-[#26201A]">
                 <tr>
-                  <th className="px-6 py-3.5">Restaurant</th>
-                  <th className="px-6 py-3.5">Owner & Contact</th>
-                  <th className="px-6 py-3.5">Plan & Tier</th>
-                  <th className="px-6 py-3.5">Live Metrics</th>
-                  <th className="px-6 py-3.5">Subscription</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="px-4 py-3.5 w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredRestaurants.length > 0 && selectedRestoIds.length === filteredRestaurants.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRestoIds(filteredRestaurants.map((r) => r.id));
+                        } else {
+                          setSelectedRestoIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 accent-[#D96B27] rounded cursor-pointer"
+                      title="Select all matching outlets"
+                    />
+                  </th>
+                  <th className="px-5 py-3.5">Restaurant &amp; Feature Matrix</th>
+                  <th className="px-5 py-3.5">Owner &amp; Contact</th>
+                  <th className="px-5 py-3.5">Plan &amp; Theme</th>
+                  <th className="px-5 py-3.5">Live Metrics</th>
+                  <th className="px-5 py-3.5">Subscription</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#241F1A]">
                 {loading && restaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-[#8C8275] font-mono">
+                    <td colSpan={7} className="px-6 py-12 text-center text-[#8C8275] font-mono">
                       <i className="fa-solid fa-circle-notch animate-spin text-lg text-[#D96B27] mb-2 block" />
                       Loading platform tenant records...
                     </td>
                   </tr>
                 ) : filteredRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-[#8C8275] font-mono">
+                    <td colSpan={7} className="px-6 py-12 text-center text-[#8C8275] font-mono">
                       No restaurants match your filter. Click &quot;+ Onboard New Restaurant&quot; to add one.
                     </td>
                   </tr>
@@ -988,15 +1553,37 @@ export default function SuperAdminPage() {
                   filteredRestaurants.map((r) => {
                     const isArchived = Boolean(r.isArchived || r.subscriptionStatus === "cancelled");
                     const isActive = r.subscriptionStatus === "active" && !isArchived;
+                    const isSelected = selectedRestoIds.includes(r.id);
                     return (
                       <tr
                         key={r.id}
                         className={`transition-colors ${
-                          isArchived ? "bg-amber-950/10 hover:bg-amber-950/20" : "hover:bg-[#1E1914]/60"
+                          isSelected
+                            ? "bg-[#D96B27]/10"
+                            : isArchived
+                            ? "bg-amber-950/10 hover:bg-amber-950/20"
+                            : "hover:bg-[#1E1914]/60"
                         }`}
                       >
-                        {/* Restaurant Name & ID */}
-                        <td className="px-6 py-4">
+                        {/* Checkbox Column */}
+                        <td className="px-4 py-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              if (e.target.checked) {
+                                setSelectedRestoIds((prev) => [...prev, r.id]);
+                              } else {
+                                setSelectedRestoIds((prev) => prev.filter((id) => id !== r.id));
+                              }
+                            }}
+                            className="w-4 h-4 accent-[#D96B27] rounded cursor-pointer"
+                          />
+                        </td>
+
+                        {/* Restaurant Name, ID & Interactive 1-Click Feature Matrix */}
+                        <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-white text-sm">{r.name}</span>
                             {isArchived && (
@@ -1012,6 +1599,67 @@ export default function SuperAdminPage() {
                                 GST: {r.gstin}
                               </span>
                             )}
+                          </div>
+
+                          {/* 1-Click Direct Feature Matrix Pills */}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                            {[
+                              {
+                                key: "tablePayUpi" as const,
+                                label: "UPI",
+                                icon: "💳",
+                                active: Boolean(r.features?.tablePayUpi),
+                              },
+                              {
+                                key: "callWaiter" as const,
+                                label: "Waiter",
+                                icon: "🛎️",
+                                active: Boolean(r.features?.callWaiter),
+                              },
+                              {
+                                key: "mobileNavStyle" as const,
+                                label: "BottomBar",
+                                icon: "⚡",
+                                active: (r.features?.mobileNavStyle ?? "bottom_bar") === "bottom_bar",
+                              },
+                              {
+                                key: "feedbackReview" as const,
+                                label: "Review",
+                                icon: "⭐",
+                                active: Boolean(r.features?.feedbackReview),
+                              },
+                              {
+                                key: "prepTimeTracker" as const,
+                                label: "Timer",
+                                icon: "⏳",
+                                active: Boolean(r.features?.prepTimeTracker),
+                              },
+                              {
+                                key: "autoMobileCards" as const,
+                                label: "Cards",
+                                icon: "🖼️",
+                                active: Boolean(r.features?.autoMobileCards ?? true),
+                              },
+                            ].map((pill) => (
+                              <button
+                                key={pill.key}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDirectToggleFeature(r, pill.key);
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                                  pill.active
+                                    ? "bg-emerald-950/40 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60 shadow-xs"
+                                    : "bg-[#1E1914] text-stone-500 border-stone-800/80 hover:border-stone-700 hover:text-stone-300"
+                                }`}
+                                title={`Click to toggle ${pill.label} (${pill.active ? "Currently ON" : "Currently OFF"})`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${pill.active ? "bg-emerald-400" : "bg-stone-600"}`} />
+                                <span>{pill.icon}</span>
+                                <span>{pill.label}</span>
+                              </button>
+                            ))}
                           </div>
                         </td>
 
@@ -1089,6 +1737,16 @@ export default function SuperAdminPage() {
                         {/* Actions: Share Menu, WhatsApp, Staff, Impersonate, Plan, Reset, Archive/Restore, Delete */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Pro Feature Cockpit Trigger */}
+                            <button
+                              onClick={() => setCockpitResto(r)}
+                              className="px-2.5 py-1 bg-[#D96B27]/20 hover:bg-[#D96B27] text-[#F38B47] hover:text-white border border-[#D96B27]/50 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                              title="Open Executive Feature Cockpit & Live Screen Mirror"
+                            >
+                              <i className="fa-solid fa-sliders text-[10px]" />
+                              <span>Cockpit</span>
+                            </button>
+
                             {/* WhatsApp Direct Owner Link */}
                             <a
                               href={(() => {
@@ -1203,6 +1861,65 @@ export default function SuperAdminPage() {
             </table>
           </div>
           </section>
+
+          {/* Floating Bulk Fleet Actions Dock */}
+          {selectedRestoIds.length > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#1A1612]/95 backdrop-blur-md border border-[#D96B27] rounded-2xl px-5 py-3 shadow-[0_10px_35px_rgba(0,0,0,0.8)] flex flex-wrap items-center gap-3 animate-fade-in text-xs">
+              <div className="flex items-center gap-2 pr-3 border-r border-[#302821]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#D96B27] animate-ping" />
+                <span className="font-mono font-bold text-white">
+                  {selectedRestoIds.length} Outlets Selected
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleBulkApplyFeatures(DHABA_PRESET, "Highway Dhaba Pack")}
+                  className="px-3 py-1.5 bg-[#251F19] hover:bg-[#322A22] text-[#EDE8DF] border border-[#3E342B] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>🥘</span>
+                  <span>Apply Dhaba Pack</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkApplyFeatures(FINE_DINE_PRESET, "Fine Dining Pack")}
+                  className="px-3 py-1.5 bg-[#251F19] hover:bg-[#322A22] text-[#EDE8DF] border border-[#3E342B] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>🍷</span>
+                  <span>Apply Fine Dine Pack</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkApplyFeatures(CAFE_PRESET, "Quick Cafe Pack")}
+                  className="px-3 py-1.5 bg-[#251F19] hover:bg-[#322A22] text-[#EDE8DF] border border-[#3E342B] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>☕</span>
+                  <span>Apply Cafe Pack</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleBulkApplyFeatures(ENTERPRISE_ALL_PRESET, "All Features ON")}
+                  className="px-3 py-1.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-700/60 rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <span>⚡</span>
+                  <span>Turn ALL ON</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRestoIds([])}
+                  className="p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800 transition-colors cursor-pointer ml-1"
+                  title="Deselect all"
+                >
+                  <i className="fa-solid fa-xmark text-sm" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1490,6 +2207,7 @@ export default function SuperAdminPage() {
         </section>
       )}
     </main>
+    </div>
 
       {/* MODAL 1: Onboard New Restaurant */}
       {showOnboardModal && (
@@ -2740,6 +3458,696 @@ export default function SuperAdminPage() {
           restaurantName={shareMenuResto.name}
           tables={shareMenuResto.tables || []}
         />
+      )}
+
+      {/* MODAL: Spotlight Command Palette (Ctrl+K) */}
+      {isSpotlightOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center pt-16 p-4"
+          onClick={() => setIsSpotlightOpen(false)}
+        >
+          <div
+            className="bg-[#181410] border border-[#302821] rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Search Input Bar */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-[#26201B] bg-[#14110E]">
+              <i className="fa-solid fa-magnifying-glass text-[#D96B27] text-base" />
+              <input
+                type="text"
+                autoFocus
+                value={spotlightQuery}
+                onChange={(e) => setSpotlightQuery(e.target.value)}
+                placeholder="Type to search restaurant, dhaba, owner name, phone, or ID..."
+                className="w-full bg-transparent text-sm text-white placeholder-stone-500 focus:outline-none font-sans"
+              />
+              <kbd className="bg-[#221C17] border border-[#302821] px-2 py-0.5 rounded text-[10px] font-mono text-stone-400">
+                ESC
+              </kbd>
+            </div>
+
+            {/* Results List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5 divide-y divide-[#241E18]">
+              {spotlightMatches.length === 0 ? (
+                <div className="p-8 text-center text-stone-500 text-xs font-mono">
+                  No restaurants or dhabas match &quot;{spotlightQuery}&quot;
+                </div>
+              ) : (
+                spotlightMatches.map((r) => (
+                  <div
+                    key={r.id}
+                    className="p-3 rounded-xl hover:bg-[#221C17] flex items-center justify-between gap-4 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-[#26201A] border border-[#3A3026] flex items-center justify-center text-lg shrink-0">
+                        {r.theme === "crimson" ? "🍷" : "🥘"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm truncate">{r.name}</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-[#181410] border border-stone-800 text-stone-400">
+                            {r.subscriptionPlan}
+                          </span>
+                          {r.subscriptionStatus === "active" ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-stone-400 font-mono truncate">
+                          Owner: {r.ownerName} • {r.ownerEmail} {r.contactPhone ? `• 📲 ${r.contactPhone}` : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action shortcuts */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSpotlightOpen(false);
+                          setCockpitResto(r);
+                        }}
+                        className="px-3 py-1.5 bg-[#D96B27]/20 hover:bg-[#D96B27] text-[#F38B47] hover:text-white border border-[#D96B27]/40 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-sliders text-[11px]" />
+                        <span>Cockpit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSpotlightOpen(false);
+                          handleImpersonate(r);
+                        }}
+                        className="px-2.5 py-1.5 bg-[#1F1A15] hover:bg-[#2A231C] text-stone-300 border border-[#302821] rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                        title="Launch POS as Owner"
+                      >
+                        <i className="fa-solid fa-ghost text-[10px]" />
+                        <span>Launch POS</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 bg-[#12100E] border-t border-[#26201B] flex justify-between items-center text-[11px] text-stone-500 font-mono">
+              <span>Navigation: Click or tap any outlet to open Cockpit</span>
+              <span>{filteredRestaurants.length} Total Outlets</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER: Executive Feature Cockpit with Live Smartphone Simulator */}
+      {cockpitResto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-end"
+          onClick={() => setCockpitResto(null)}
+        >
+          <div
+            className="w-full max-w-4xl bg-[#16120E] border-l border-[#2D251F] h-full flex flex-col shadow-2xl overflow-hidden animate-slide-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Cockpit Header */}
+            <div className="p-5 border-b border-[#26201B] bg-[#14110E] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D96B27] to-[#B35218] flex items-center justify-center text-2xl shadow-lg shadow-[#D96B27]/20 border border-[#FF8A42]/30">
+                  {cockpitResto.theme === "crimson" ? "🍷" : "🥘"}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-white tracking-tight">{cockpitResto.name}</h2>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      {cockpitResto.subscriptionPlan} Plan
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                        cockpitResto.subscriptionStatus === "active"
+                          ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                          : "bg-red-500/15 text-red-300 border border-red-500/30"
+                      }`}
+                    >
+                      {cockpitResto.subscriptionStatus}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[#8C8275] font-mono mt-0.5">
+                    Owner: {cockpitResto.ownerName} ({cockpitResto.ownerEmail})
+                    {cockpitResto.contactPhone ? ` • 📲 ${cockpitResto.contactPhone}` : ""}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleImpersonate(cockpitResto)}
+                  className="px-3 py-1.5 bg-[#D96B27]/20 hover:bg-[#D96B27] text-[#F38B47] hover:text-white border border-[#D96B27]/50 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Launch POS terminal as this outlet"
+                >
+                  <i className="fa-solid fa-ghost text-xs" />
+                  <span>Launch POS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCockpitResto(null)}
+                  className="p-2 text-stone-400 hover:text-white rounded-lg hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <i className="fa-solid fa-xmark text-lg" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Split Body: Left Controls, Right Smartphone Simulator */}
+            <div className="flex-1 flex overflow-hidden min-h-0">
+              {/* Left Column: Feature Switchboard & Presets */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+                {/* 1-Click Smart Presets Pack */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#D96B27]">
+                      ⚡ 1-Click Smart Setup Presets
+                    </span>
+                    <span className="text-[10px] text-stone-500">Instant configuration templates</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCockpitResto({
+                          ...cockpitResto,
+                          features: { ...DHABA_PRESET },
+                        })
+                      }
+                      className="p-2.5 rounded-xl border border-[#2D251F] bg-[#14110E] hover:border-[#D96B27] hover:bg-[#1E1914] text-left transition-all cursor-pointer group"
+                    >
+                      <div className="text-base mb-1">🥘</div>
+                      <div className="font-bold text-white text-xs group-hover:text-[#D96B27]">Dhaba Pack</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Table UPI, Cards, Bottom Bar</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCockpitResto({
+                          ...cockpitResto,
+                          features: { ...FINE_DINE_PRESET },
+                        })
+                      }
+                      className="p-2.5 rounded-xl border border-[#2D251F] bg-[#14110E] hover:border-[#D96B27] hover:bg-[#1E1914] text-left transition-all cursor-pointer group"
+                    >
+                      <div className="text-base mb-1">🍷</div>
+                      <div className="font-bold text-white text-xs group-hover:text-[#D96B27]">Fine Dining</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Waiter Call, Notes, Review, KDS</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCockpitResto({
+                          ...cockpitResto,
+                          features: { ...CAFE_PRESET },
+                        })
+                      }
+                      className="p-2.5 rounded-xl border border-[#2D251F] bg-[#14110E] hover:border-[#D96B27] hover:bg-[#1E1914] text-left transition-all cursor-pointer group"
+                    >
+                      <div className="text-base mb-1">☕</div>
+                      <div className="font-bold text-white text-xs group-hover:text-[#D96B27]">Cafe &amp; Kiosk</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Quick KOT, UPI, Upsell</div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCockpitResto({
+                          ...cockpitResto,
+                          features: { ...ENTERPRISE_ALL_PRESET },
+                        })
+                      }
+                      className="p-2.5 rounded-xl border border-[#2D251F] bg-[#14110E] hover:border-emerald-500 hover:bg-emerald-950/20 text-left transition-all cursor-pointer group"
+                    >
+                      <div className="text-base mb-1">⚡</div>
+                      <div className="font-bold text-white text-xs group-hover:text-emerald-400">All ON</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">Full Platform Suite</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 1: Customer Dining Experience */}
+                <div className="space-y-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#A89F91] block border-b border-[#241E18] pb-1">
+                    📱 Customer Self-Ordering &amp; Dining Experience
+                  </span>
+
+                  <div className="space-y-2">
+                    {[
+                      {
+                        key: "tablePayUpi" as const,
+                        label: "Instant Table UPI Payment",
+                        desc: "Diner scans QR and pays directly via PhonePe / GPay / Paytm",
+                        icon: "💳",
+                      },
+                      {
+                        key: "callWaiter" as const,
+                        label: "Call Waiter Service Buzzer",
+                        desc: "Diner sounds digital chime for Waiter, Water, or Cleaning",
+                        icon: "🛎️",
+                      },
+                      {
+                        key: "dishNotes" as const,
+                        label: "Cooking Instructions Per Dish",
+                        desc: "Allows customer to add 'less spicy', 'crispy' instructions",
+                        icon: "✏️",
+                      },
+                      {
+                        key: "smartUpsell" as const,
+                        label: "Smart Cart Pairing Upsell",
+                        desc: "Recommends companion breads, drinks & desserts before checkout",
+                        icon: "💡",
+                      },
+                      {
+                        key: "feedbackReview" as const,
+                        label: "5-Star Google Review Booster",
+                        desc: "Post-meal rating prompt boosting online reviews",
+                        icon: "⭐",
+                      },
+                    ].map((feat) => {
+                      const curFeats = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                      const isEnabled = curFeats[feat.key] ?? true;
+
+                      return (
+                        <div
+                          key={feat.key}
+                          onClick={() =>
+                            setCockpitResto({
+                              ...cockpitResto,
+                              features: {
+                                ...curFeats,
+                                [feat.key]: !isEnabled,
+                              },
+                            })
+                          }
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                            isEnabled
+                              ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                              : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg">{feat.icon}</span>
+                            <div>
+                              <div className="font-bold text-xs">{feat.label}</div>
+                              <div className="text-[10px] text-[#8C8275]">{feat.desc}</div>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                              isEnabled ? "bg-[#D96B27] justify-end" : "bg-stone-800 justify-start"
+                            }`}
+                          >
+                            <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 2: Kitchen Rail & KDS */}
+                <div className="space-y-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#A89F91] block border-b border-[#241E18] pb-1">
+                    👨‍🍳 Kitchen Rail &amp; Chef Operations
+                  </span>
+
+                  <div
+                    onClick={() => {
+                      const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                      setCockpitResto({
+                        ...cockpitResto,
+                        features: {
+                          ...cur,
+                          prepTimeTracker: !cur.prepTimeTracker,
+                        },
+                      });
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      cockpitResto.features?.prepTimeTracker !== false
+                        ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                        : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">⏳</span>
+                      <div>
+                        <div className="font-bold text-xs">Live Prep Time Countdown</div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Chefs and waiters can set preparation estimate countdown for each order
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                        cockpitResto.features?.prepTimeTracker !== false
+                          ? "bg-[#D96B27] justify-end"
+                          : "bg-stone-800 justify-start"
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Mobile & Tablet UI/UX */}
+                <div className="space-y-3">
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#D96B27] block border-b border-[#241E18] pb-1">
+                    📲 Mobile &amp; Tablet UI/UX Navigation Engine
+                  </span>
+
+                  {/* Mobile Navigation Style Toggle */}
+                  <div className="p-3 bg-[#12100E] border border-[#2D251F] rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-white">Mobile Navigation Style</div>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                        {cockpitResto.features?.mobileNavStyle === "sidebar" ? "Slide Drawer" : "Bottom Tab Bar (Recommended)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            features: { ...cur, mobileNavStyle: "bottom_bar" },
+                          });
+                        }}
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          cockpitResto.features?.mobileNavStyle !== "sidebar"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>⚡ Bottom Tab Bar</span>
+                          {cockpitResto.features?.mobileNavStyle !== "sidebar" && (
+                            <span className="text-[10px] text-[#D96B27]">✓ Active</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          1-Thumb touch docked at bottom (Zomato/Toast POS style)
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            features: { ...cur, mobileNavStyle: "sidebar" },
+                          });
+                        }}
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          cockpitResto.features?.mobileNavStyle === "sidebar"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>☰ Slide Drawer</span>
+                          {cockpitResto.features?.mobileNavStyle === "sidebar" && (
+                            <span className="text-[10px] text-[#D96B27]">✓ Active</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          Top bar with hamburger slide-out sidebar sheet
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Native Bottom Sheets Toggle */}
+                  <div
+                    onClick={() => {
+                      const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                      setCockpitResto({
+                        ...cockpitResto,
+                        features: {
+                          ...cur,
+                          mobileSheetModals: cur.mobileSheetModals === false ? true : false,
+                        },
+                      });
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      cockpitResto.features?.mobileSheetModals !== false
+                        ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                        : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">📲</span>
+                      <div>
+                        <div className="font-bold text-xs">Native Bottom Sheet Modals</div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Convert modals to bottom sheet drawers with sticky buttons (keyboard friendly)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                        cockpitResto.features?.mobileSheetModals !== false
+                          ? "bg-[#D96B27] justify-end"
+                          : "bg-stone-800 justify-start"
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+
+                  {/* Auto Mobile Cards Toggle */}
+                  <div
+                    onClick={() => {
+                      const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                      setCockpitResto({
+                        ...cockpitResto,
+                        features: {
+                          ...cur,
+                          autoMobileCards: cur.autoMobileCards === false ? true : false,
+                        },
+                      });
+                    }}
+                    className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                      cockpitResto.features?.autoMobileCards !== false
+                        ? "bg-[#1E1A16] border-[#D96B27]/40 text-white"
+                        : "bg-[#14110E] border-transparent text-[#7D7466] hover:border-[#2D251F]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">🖼️</span>
+                      <div>
+                        <div className="font-bold text-xs">Auto Mobile Touch Cards</div>
+                        <div className="text-[10px] text-[#8C8275]">
+                          Auto-switch wide 8-column menu table to 1-tap touch cards on phone screens
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors flex items-center ${
+                        cockpitResto.features?.autoMobileCards !== false
+                          ? "bg-[#D96B27] justify-end"
+                          : "bg-stone-800 justify-start"
+                      }`}
+                    >
+                      <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 4: WhatsApp Setup Sender */}
+                <div className="p-4 bg-[#141F17] border border-emerald-800/60 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-brands fa-whatsapp text-emerald-400 text-lg" />
+                      <span className="font-bold text-white">Send Setup Summary to Owner</span>
+                    </div>
+                    {copiedCockpitLink && <span className="text-emerald-400 font-bold font-mono">✓ Link Copied!</span>}
+                  </div>
+                  <p className="text-[11px] text-emerald-200/80">
+                    Sends a complete formatted WhatsApp message containing the active feature list, credentials, and magic login link directly to {cockpitResto.ownerName}.
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={getWhatsAppSetupUrl(cockpitResto)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40"
+                    >
+                      <i className="fa-brands fa-whatsapp text-base" />
+                      <span>Dispatch WhatsApp Message</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const origin = typeof window !== "undefined" ? window.location.origin : "";
+                        const loginUrl = `${origin}/login?resto=${cockpitResto.id}&role=owner`;
+                        navigator.clipboard.writeText(loginUrl);
+                        setCopiedCockpitLink(true);
+                        setTimeout(() => setCopiedCockpitLink(false), 2500);
+                      }}
+                      className="px-3 py-2.5 bg-[#1F2E23] hover:bg-[#283D2F] text-emerald-300 border border-emerald-700/60 rounded-lg font-semibold"
+                      title="Copy Magic Login Link"
+                    >
+                      <i className="fa-solid fa-copy" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Live Smartphone Simulator */}
+              <div className="w-80 shrink-0 hidden lg:flex flex-col items-center justify-start p-6 bg-[#100D0A] border-l border-[#241E18] space-y-3">
+                <div className="flex items-center justify-between w-full font-mono text-[10px] text-stone-400 uppercase">
+                  <span>Live Smartphone Screen Mirror</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+
+                {/* Smartphone Device Frame */}
+                <div className="w-68 h-[540px] bg-black rounded-[38px] border-4 border-[#3A3026] shadow-2xl relative overflow-hidden flex flex-col">
+                  {/* Dynamic Island / Camera Notch */}
+                  <div className="w-20 h-4 bg-black rounded-b-xl mx-auto z-20 flex items-center justify-center">
+                    <div className="w-2.5 h-2.5 rounded-full bg-stone-900 border border-stone-800" />
+                  </div>
+
+                  {/* Simulator Screen Content */}
+                  <div className="flex-1 flex flex-col bg-[#1A1612] text-white p-3 pt-1 overflow-hidden text-[11px] select-none">
+                    {/* Simulator Top Nav */}
+                    <div className="flex items-center justify-between border-b border-stone-800/80 pb-2 mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs">🔥</span>
+                        <span className="font-bold truncate text-[11px]">{cockpitResto.name}</span>
+                      </div>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                        Table T04
+                      </span>
+                    </div>
+
+                    {/* Simulator Dynamic Modules */}
+                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                      {/* Call Waiter Pill */}
+                      {cockpitResto.features?.callWaiter !== false && (
+                        <div className="p-2 rounded-lg bg-[#241E18] border border-amber-500/30 flex items-center justify-between text-[10px]">
+                          <span className="flex items-center gap-1">
+                            <span>🛎️</span>
+                            <span>Service Bell Active</span>
+                          </span>
+                          <span className="text-[#D96B27] font-bold">Ring</span>
+                        </div>
+                      )}
+
+                      {/* Sample Food Card */}
+                      <div className="p-2.5 rounded-lg bg-[#221C17] border border-stone-800 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white">Paneer Butter Masala</span>
+                          <span className="font-mono text-amber-400 font-bold">₹310</span>
+                        </div>
+                        {cockpitResto.features?.dishNotes !== false && (
+                          <div className="text-[9px] text-stone-400 italic bg-black/40 px-2 py-0.5 rounded">
+                            ✏️ Note: Extra gravy, less butter...
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Smart Upsell Preview */}
+                      {cockpitResto.features?.smartUpsell !== false && (
+                        <div className="p-2 rounded-lg bg-amber-950/30 border border-amber-800/40 text-[9px] space-y-1">
+                          <div className="font-bold text-amber-300 flex items-center gap-1">
+                            <span>💡</span>
+                            <span>Pair with Garlic Naan</span>
+                          </div>
+                          <div className="text-stone-400">+₹75 • 82% diners add this</div>
+                        </div>
+                      )}
+
+                      {/* Table Pay UPI QR Preview */}
+                      {cockpitResto.features?.tablePayUpi !== false && (
+                        <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[9px] flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 font-bold text-emerald-300">
+                            <span>💳</span>
+                            <span>Instant UPI Settlement</span>
+                          </span>
+                          <span className="bg-emerald-500 text-black px-1.5 py-0.5 rounded font-bold text-[8px]">
+                            PAY NOW
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Review Booster */}
+                      {cockpitResto.features?.feedbackReview !== false && (
+                        <div className="p-2 rounded-lg bg-stone-900 border border-stone-800 text-[9px] text-center">
+                          <span className="text-amber-400">⭐⭐⭐⭐⭐</span>
+                          <div className="text-stone-400 text-[8px]">Google 5-Star Review Prompt</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Nav Simulation */}
+                    <div className="pt-2 border-t border-stone-800/80 mt-1 shrink-0">
+                      {cockpitResto.features?.mobileNavStyle !== "sidebar" ? (
+                        <div className="flex justify-around text-[9px] font-mono text-stone-400">
+                          <span className="text-[#D96B27] font-bold">Floor</span>
+                          <span>Tables</span>
+                          <span>Kitchen</span>
+                          <span>Menu</span>
+                          <span>Staff</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-[9px] text-stone-400 px-1">
+                          <span>☰ Menu Drawer</span>
+                          <span>Cast-Iron Sidebar Mode</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Home Bar Indicator */}
+                  <div className="w-24 h-1 bg-stone-600 rounded-full mx-auto my-1.5 z-20 shrink-0" />
+                </div>
+
+                <p className="text-[10px] text-stone-500 text-center font-mono">
+                  Changes update screen mirror in realtime.
+                </p>
+              </div>
+            </div>
+
+            {/* Sticky Cockpit Footer */}
+            <div className="p-4 bg-[#14110E] border-t border-[#26201B] flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setCockpitResto(null)}
+                className="px-4 py-2 bg-[#221C17] hover:bg-[#2C241E] text-stone-400 hover:text-white rounded-lg text-xs font-semibold cursor-pointer"
+              >
+                Cancel / Discard
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveCockpit}
+                disabled={isSavingCockpit}
+                className="px-6 py-2.5 bg-gradient-to-r from-[#D96B27] to-[#B85418] hover:from-[#E3752F] text-white rounded-lg text-xs font-bold shadow-lg shadow-[#D96B27]/25 flex items-center gap-2 cursor-pointer transition-transform active:scale-95 disabled:opacity-50"
+              >
+                <i className={`fa-solid ${isSavingCockpit ? "fa-circle-notch animate-spin" : "fa-floppy-disk"}`} />
+                <span>{isSavingCockpit ? "Saving Cockpit..." : "Save Cockpit Configuration"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

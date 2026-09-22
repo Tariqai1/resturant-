@@ -340,19 +340,64 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, subscription_plan, subscription_status, name, gstin, action } = body;
+    const { id, ids, subscription_plan, subscription_status, name, gstin, action, theme, features } = body;
 
-    if (!id) {
-      return NextResponse.json({ ok: false, message: "Restaurant ID required" }, { status: 400 });
+    const targetIds: string[] = Array.isArray(ids) && ids.length > 0 ? ids : (id ? [id] : []);
+
+    if (targetIds.length === 0) {
+      return NextResponse.json({ ok: false, message: "Restaurant ID or IDs required" }, { status: 400 });
     }
 
     const admin = createAdminClient();
+
+    // Batch Operation for multiple restaurants
+    if (targetIds.length > 1) {
+      if (features && typeof features === "object") {
+        for (const tid of targetIds) {
+          setRestaurantFeatures(tid, features);
+        }
+      }
+      if (theme === "amber" || theme === "crimson") {
+        for (const tid of targetIds) {
+          setRestaurantTheme(tid, theme);
+        }
+      }
+      const batchUpdates: Record<string, unknown> = {};
+      if (subscription_status) batchUpdates.subscription_status = subscription_status;
+      if (subscription_plan) batchUpdates.subscription_plan = subscription_plan;
+
+      if (Object.keys(batchUpdates).length > 0) {
+        const { error } = await admin.from("restaurants").update(batchUpdates).in("id", targetIds);
+        if (error) {
+          return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+        }
+      }
+
+      logActivity({
+        action: "STATUS_CHANGE",
+        actorEmail: authCheck.user?.email || "super-admin",
+        details: `Batch updated ${targetIds.length} restaurants: ${[
+          features ? "Feature entitlements" : null,
+          subscription_status ? `Status -> ${subscription_status}` : null,
+          subscription_plan ? `Plan -> ${subscription_plan}` : null,
+        ].filter(Boolean).join(", ")}`,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        message: `Successfully updated ${targetIds.length} restaurants`,
+        count: targetIds.length,
+      });
+    }
+
+    // Single Restaurant Operation
+    const singleId = targetIds[0];
 
     // Fetch existing restaurant name
     const { data: existingResto } = await admin
       .from("restaurants")
       .select("id, name, subscription_status, subscription_plan")
-      .eq("id", id)
+      .eq("id", singleId)
       .single();
 
     const targetName = name || existingResto?.name || "Restaurant";
@@ -361,7 +406,7 @@ export async function PATCH(request: Request) {
     if (action === "archive" || subscription_status === "cancelled") {
       updates.subscription_status = "cancelled";
       archiveRestaurant({
-        id,
+        id: singleId,
         name: targetName,
         archivedAt: new Date().toISOString(),
         archivedBy: authCheck.user?.email || "super-admin",
@@ -369,17 +414,17 @@ export async function PATCH(request: Request) {
       logActivity({
         action: "ARCHIVE",
         actorEmail: authCheck.user?.email || "super-admin",
-        targetId: id,
+        targetId: singleId,
         targetName,
         details: `Archived restaurant "${targetName}". Financial ledger and GST audit data preserved.`,
       });
     } else if (action === "restore" || (subscription_status === "active" && existingResto?.subscription_status === "cancelled")) {
       updates.subscription_status = "active";
-      restoreRestaurant(id);
+      restoreRestaurant(singleId);
       logActivity({
         action: "RESTORE",
         actorEmail: authCheck.user?.email || "super-admin",
-        targetId: id,
+        targetId: singleId,
         targetName,
         details: `Restored restaurant "${targetName}" back to active status.`,
       });
@@ -389,7 +434,7 @@ export async function PATCH(request: Request) {
         logActivity({
           action: "STATUS_CHANGE",
           actorEmail: authCheck.user?.email || "super-admin",
-          targetId: id,
+          targetId: singleId,
           targetName,
           details: `Changed outlet status to "${subscription_status}" for "${targetName}"`,
         });
@@ -399,7 +444,7 @@ export async function PATCH(request: Request) {
         logActivity({
           action: "PLAN_CHANGE",
           actorEmail: authCheck.user?.email || "super-admin",
-          targetId: id,
+          targetId: singleId,
           targetName,
           details: `Updated subscription tier to "${subscription_plan}" for "${targetName}"`,
         });
@@ -409,30 +454,30 @@ export async function PATCH(request: Request) {
     if (name) updates.name = name.trim();
     if (gstin !== undefined) updates.gstin = gstin?.trim() || null;
 
-    if (body.theme === "amber" || body.theme === "crimson") {
-      setRestaurantTheme(id, body.theme);
+    if (theme === "amber" || theme === "crimson") {
+      setRestaurantTheme(singleId, theme);
       logActivity({
         action: "STATUS_CHANGE",
         actorEmail: authCheck.user?.email || "super-admin",
-        targetId: id,
+        targetId: singleId,
         targetName,
-        details: `Updated theme palette to "${body.theme === "amber" ? "Amber Gold (#FFBE0B)" : "Velvet Crimson (#741A2F)"}" for "${targetName}"`,
+        details: `Updated theme palette to "${theme === "amber" ? "Amber Gold (#FFBE0B)" : "Velvet Crimson (#741A2F)"}" for "${targetName}"`,
       });
     }
 
-    if (body.features && typeof body.features === "object") {
-      setRestaurantFeatures(id, body.features);
+    if (features && typeof features === "object") {
+      setRestaurantFeatures(singleId, features);
       logActivity({
         action: "STATUS_CHANGE",
         actorEmail: authCheck.user?.email || "super-admin",
-        targetId: id,
+        targetId: singleId,
         targetName,
         details: `Updated feature entitlements switchboard for "${targetName}"`,
       });
     }
 
     if (Object.keys(updates).length > 0) {
-      const { error } = await admin.from("restaurants").update(updates).eq("id", id);
+      const { error } = await admin.from("restaurants").update(updates).eq("id", singleId);
       if (error) {
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
       }
