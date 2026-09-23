@@ -67,6 +67,7 @@ type RestaurantFeatures = {
   smartUpsell: boolean;
   feedbackReview: boolean;
   loyaltyOffers?: boolean;
+  waiterOrderApproval?: boolean;
 };
 
 function triggerHaptic(ms = 12) {
@@ -208,7 +209,10 @@ export default function CustomerTableOrderingPage({
     smartUpsell: true,
     feedbackReview: true,
     loyaltyOffers: true,
+    waiterOrderApproval: false,
   });
+
+  const [isApprovalPending, setIsApprovalPending] = useState<boolean>(false);
 
   // Dynamic Restaurant Offers & Retention Config
   const [offerConfig, setOfferConfig] = useState<RestaurantOfferConfig>(DEFAULT_OFFER_CONFIG);
@@ -319,6 +323,7 @@ export default function CustomerTableOrderingPage({
       setCategories(data.categories || []);
       setItems(data.items || []);
       setActiveOrder(data.activeOrder || null);
+      if (data.isApprovalPending !== undefined) setIsApprovalPending(Boolean(data.isApprovalPending));
       if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
       if (data.branding) {
         setBranding(data.branding);
@@ -354,6 +359,7 @@ export default function CustomerTableOrderingPage({
         setCategories(data.categories || []);
         setItems(data.items || []);
         setActiveOrder(data.activeOrder || null);
+        if (data.isApprovalPending !== undefined) setIsApprovalPending(Boolean(data.isApprovalPending));
         if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
         if (data.branding) {
           setBranding(data.branding);
@@ -766,7 +772,12 @@ export default function CustomerTableOrderingPage({
 
       setCart({});
       setIsReviewOpen(false);
-      setOrderSuccessMsg("Order sent to kitchen! Cooking begins immediately.");
+      if (data.approvalPending) {
+        setIsApprovalPending(true);
+        setOrderSuccessMsg("Order placed! Floor captain will verify items at your table shortly.");
+      } else {
+        setOrderSuccessMsg("Order sent to kitchen! Cooking begins immediately.");
+      }
       await loadTableData();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to place order.");
@@ -1685,6 +1696,34 @@ export default function CustomerTableOrderingPage({
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {/* Waiter / Captain Order Verification Reassurance Card */}
+      {isApprovalPending && (
+        <div
+          className="mx-4 mt-3 p-3.5 rounded-2xl border shadow-sm animate-fade-in flex items-center justify-between"
+          style={{
+            backgroundColor: "#FFFBEB",
+            borderColor: "#FCD34D",
+            color: "#92400E",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl animate-pulse">⏳</span>
+            <div>
+              <div className="text-xs font-black tracking-wide uppercase flex items-center gap-1.5 text-amber-900">
+                <span>Captain Verification in Progress</span>
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              </div>
+              <div className="text-[11px] text-amber-800 font-medium mt-0.5">
+                Our floor captain is verifying your order at your table before firing to the kitchen.
+              </div>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-300 flex-shrink-0">
+            Awaiting Approval
+          </span>
         </div>
       )}
 

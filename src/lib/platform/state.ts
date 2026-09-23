@@ -65,6 +65,23 @@ export type WaiterCallRequest = {
   acknowledgedAt?: string;
 };
 
+export type PendingOrderApprovalBatch = {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  tableId: string;
+  tableNumber: string;
+  customerName?: string | null;
+  itemIds: string[];
+  totalAmount: number;
+  totalItems: number;
+  status: "awaiting_approval" | "approved" | "rejected";
+  createdAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedReason?: string;
+};
+
 export type RestaurantFeatures = {
   callWaiter: boolean;        // 🛎️ Staff buzzer module
   prepTimeTracker: boolean;   // ⏳ Live countdown timer & chef/waiter time setter
@@ -74,6 +91,7 @@ export type RestaurantFeatures = {
   smartUpsell: boolean;       // 💡 Smart pairing recommendations in cart
   feedbackReview: boolean;    // ⭐ 5-star Google review booster
   loyaltyOffers?: boolean;    // 🎁 Dynamic discount banner, scratch card & referrals
+  waiterOrderApproval?: boolean; // 👨‍💼 Captain/waiter verification required before kitchen dispatch
   mobileNavStyle?: "bottom_bar" | "sidebar"; // 📱 Mobile Navigation Style (Default: 'bottom_bar')
   mobileSheetModals?: boolean; // 📲 Native Bottom Sheet Drawers for mobile forms (Default: true)
   autoMobileCards?: boolean;  // 🖼️ Auto-switch from dense tables to touch cards on mobile (Default: true)
@@ -88,6 +106,7 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   smartUpsell: true,
   feedbackReview: true,
   loyaltyOffers: true,
+  waiterOrderApproval: false,
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
@@ -141,6 +160,7 @@ export type PlatformState = {
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
   restaurantPhones?: Record<string, string>;
   dishSpecialTags?: Record<string, string>;
+  pendingOrderApprovals?: Record<string, PendingOrderApprovalBatch>;
 };
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -172,8 +192,14 @@ let memoryState: PlatformState = {
   staffPermissions: {},
   waiterCalls: [],
   restaurantThemes: {},
+  restaurantBrandings: {},
   restaurantFeatures: {},
+  restaurantOffers: {},
+  restaurantUpsellConfigs: {},
   orderPrepEstimates: {},
+  restaurantPhones: {},
+  dishSpecialTags: {},
+  pendingOrderApprovals: {},
 };
 
 function ensureDataDir() {
@@ -199,8 +225,14 @@ export function getPlatformState(): PlatformState {
         staffPermissions: parsed.staffPermissions || {},
         waiterCalls: Array.isArray(parsed.waiterCalls) ? parsed.waiterCalls : [],
         restaurantThemes: parsed.restaurantThemes || {},
+        restaurantBrandings: parsed.restaurantBrandings || {},
         restaurantFeatures: parsed.restaurantFeatures || {},
+        restaurantOffers: parsed.restaurantOffers || {},
+        restaurantUpsellConfigs: parsed.restaurantUpsellConfigs || {},
         orderPrepEstimates: parsed.orderPrepEstimates || {},
+        restaurantPhones: parsed.restaurantPhones || {},
+        dishSpecialTags: parsed.dishSpecialTags || {},
+        pendingOrderApprovals: parsed.pendingOrderApprovals || {},
       };
     } else {
       savePlatformState(memoryState);
@@ -581,5 +613,73 @@ export function setDishSpecialTag(dishId: string, tag: string | null): void {
   }
   savePlatformState(state);
 }
+
+export function registerPendingOrderBatch(
+  batch: Omit<PendingOrderApprovalBatch, "id" | "status" | "createdAt">
+): PendingOrderApprovalBatch {
+  const state = getPlatformState();
+  if (!state.pendingOrderApprovals) {
+    state.pendingOrderApprovals = {};
+  }
+  const id = `batch-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const record: PendingOrderApprovalBatch = {
+    ...batch,
+    id,
+    status: "awaiting_approval",
+    createdAt: new Date().toISOString(),
+  };
+  state.pendingOrderApprovals[id] = record;
+  savePlatformState(state);
+  return record;
+}
+
+export function getActivePendingApprovals(restaurantId: string): PendingOrderApprovalBatch[] {
+  const state = getPlatformState();
+  if (!state.pendingOrderApprovals) return [];
+  return Object.values(state.pendingOrderApprovals).filter(
+    (b) => b.restaurantId === restaurantId && b.status === "awaiting_approval"
+  );
+}
+
+export function isTableAwaitingApproval(tableId: string): boolean {
+  const state = getPlatformState();
+  if (!state.pendingOrderApprovals) return false;
+  return Object.values(state.pendingOrderApprovals).some(
+    (b) => b.tableId === tableId && b.status === "awaiting_approval"
+  );
+}
+
+export function getPendingApprovalItemIds(restaurantId: string): Set<string> {
+  const activeBatches = getActivePendingApprovals(restaurantId);
+  const itemIds = new Set<string>();
+  for (const batch of activeBatches) {
+    for (const id of batch.itemIds) {
+      itemIds.add(id);
+    }
+  }
+  return itemIds;
+}
+
+export function approveOrderBatch(batchId: string, approvedBy?: string): PendingOrderApprovalBatch | null {
+  const state = getPlatformState();
+  if (!state.pendingOrderApprovals || !state.pendingOrderApprovals[batchId]) return null;
+  const batch = state.pendingOrderApprovals[batchId];
+  batch.status = "approved";
+  batch.approvedAt = new Date().toISOString();
+  if (approvedBy) batch.approvedBy = approvedBy;
+  savePlatformState(state);
+  return batch;
+}
+
+export function rejectOrderBatch(batchId: string, reason?: string): PendingOrderApprovalBatch | null {
+  const state = getPlatformState();
+  if (!state.pendingOrderApprovals || !state.pendingOrderApprovals[batchId]) return null;
+  const batch = state.pendingOrderApprovals[batchId];
+  batch.status = "rejected";
+  if (reason) batch.rejectedReason = reason;
+  savePlatformState(state);
+  return batch;
+}
+
 
 

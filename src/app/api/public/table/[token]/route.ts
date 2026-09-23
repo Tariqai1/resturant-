@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime, getRestaurantOfferConfig, getRestaurantBranding, getRestaurantUpsellConfig } from "@/lib/platform/state";
+import { getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime, getRestaurantOfferConfig, getRestaurantBranding, getRestaurantUpsellConfig, isTableAwaitingApproval } from "@/lib/platform/state";
+
 
 export async function GET(
   _request: NextRequest,
@@ -157,6 +158,7 @@ export async function GET(
       categories: categories || [],
       items: items || [],
       activeOrder: validOpenOrder ? { ...validOpenOrder, prepEstimate } : null,
+      isApprovalPending: isTableAwaitingApproval(table.id),
       joinedNotice,
     });
   } catch (error) {

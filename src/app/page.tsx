@@ -108,6 +108,20 @@ type OpenOrder = {
   } | null;
 };
 
+type PendingOrderApprovalBatch = {
+  id: string;
+  orderId: string;
+  restaurantId: string;
+  tableId: string;
+  tableNumber: string;
+  customerName?: string | null;
+  itemIds: string[];
+  totalAmount: number;
+  totalItems: number;
+  status: "awaiting_approval" | "approved" | "rejected";
+  createdAt: string;
+};
+
 export default function Home() {
   const router = useRouter();
 
@@ -129,6 +143,15 @@ export default function Home() {
   const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
   const [isSavingUpsell, setIsSavingUpsell] = useState(false);
   const [upsellSaveMsg, setUpsellSaveMsg] = useState("");
+
+  // Waiter Order Verification State
+  const [pendingApprovals, setPendingApprovals] = useState<PendingOrderApprovalBatch[]>([]);
+  const [selectedApprovalBatch, setSelectedApprovalBatch] = useState<PendingOrderApprovalBatch | null>(null);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const previousApprovalsCountRef = useRef(0);
 
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     todayRevenue: 0,
@@ -287,11 +310,20 @@ export default function Home() {
           previousCallsCountRef.current = calls.length;
           setWaiterCalls(calls);
         }
+        if (data.pendingApprovals) {
+          const approvals: PendingOrderApprovalBatch[] = data.pendingApprovals || [];
+          if (approvals.length > previousApprovalsCountRef.current) {
+            playBuzzer();
+            notify(`⚡ New Order awaiting Captain Approval: Table ${approvals[approvals.length - 1].tableNumber}`);
+          }
+          previousApprovalsCountRef.current = approvals.length;
+          setPendingApprovals(approvals);
+        }
       }
     } catch {
       // Keep running state
     }
-  }, [playBuzzer]);
+  }, [playBuzzer, notify]);
 
   useEffect(() => {
     let isMounted = true;
@@ -318,6 +350,10 @@ export default function Home() {
         if (data.waiterCalls) {
           setWaiterCalls(data.waiterCalls);
           previousCallsCountRef.current = (data.waiterCalls || []).length;
+        }
+        if (data.pendingApprovals) {
+          setPendingApprovals(data.pendingApprovals);
+          previousApprovalsCountRef.current = (data.pendingApprovals || []).length;
         }
       })
       .catch(() => undefined);
@@ -422,6 +458,10 @@ export default function Home() {
       joinedBadge = `🔗 Joined ${masterNum}`;
     }
 
+    const hasPendingApproval = pendingApprovals.some(
+      (b) => b.tableNumber === t.table_number || b.tableId === t.id
+    );
+
     return {
       id: t.id,
       number: t.table_number,
@@ -433,6 +473,7 @@ export default function Home() {
       itemCount,
       elapsedMinutes,
       joinedBadge,
+      hasPendingApproval,
     };
   });
 
@@ -617,6 +658,55 @@ export default function Home() {
     }
   }
 
+  // Handle Waiter / Captain Order Approval
+  const handleApproveBatch = async (batchId: string) => {
+    if (isProcessingApproval) return;
+    setIsProcessingApproval(true);
+    try {
+      const res = await fetch("/api/orders/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchId, action: "approve" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to approve order");
+      notify(data.message || "Order approved and dispatched to Kitchen KOT");
+      setIsApprovalModalOpen(false);
+      setSelectedApprovalBatch(null);
+      setShowRejectInput(false);
+      await fetchDashboardData();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Approval failed");
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  // Handle Waiter / Captain Order Rejection
+  const handleRejectBatch = async (batchId: string, reason?: string) => {
+    if (isProcessingApproval) return;
+    setIsProcessingApproval(true);
+    try {
+      const res = await fetch("/api/orders/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batchId, action: "reject", reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to reject order");
+      notify(data.message || "Order rejected and discarded");
+      setIsApprovalModalOpen(false);
+      setSelectedApprovalBatch(null);
+      setShowRejectInput(false);
+      setRejectionReason("");
+      await fetchDashboardData();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Rejection failed");
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
   return (
     <div data-theme={theme} className="min-h-screen flex flex-col md:flex-row" style={{ backgroundColor: "var(--paper)" }}>
       {/* State Notification Banner (Replaces floating toast) */}
@@ -709,6 +799,39 @@ export default function Home() {
               <span>💡</span>
               <span className="hidden sm:inline">Smart Upsell</span>
               {upsellConfig.ownerCanManageUpsell === false && <span className="text-[10px]">🔒</span>}
+            </button>
+
+            {/* Captain Verification Toggle */}
+            <button
+              type="button"
+              onClick={async () => {
+                const current = Boolean(features?.waiterOrderApproval);
+                const next = !current;
+                try {
+                  const res = await fetch("/api/restaurant/features", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ waiterOrderApproval: next }),
+                  });
+                  if (res.ok) {
+                    setFeatures((prev) => (prev ? { ...prev, waiterOrderApproval: next } : null));
+                    notify(next ? "Waiter Order Verification Enabled" : "Direct Kitchen KOT Enabled (Verification Disabled)");
+                  }
+                } catch {
+                  // ignore
+                }
+              }}
+              className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+              style={{
+                backgroundColor: features?.waiterOrderApproval ? "#FFF8E1" : "#F5F5F5",
+                color: features?.waiterOrderApproval ? "#B78103" : "#757575",
+                borderColor: features?.waiterOrderApproval ? "#FFE082" : "#E0E0E0",
+                borderRadius: "5px",
+              }}
+              title="Toggle Waiter / Captain Order Verification before Kitchen Dispatch"
+            >
+              <span>👨‍💼</span>
+              <span className="hidden sm:inline">Captain Verification: {features?.waiterOrderApproval ? "ON" : "OFF"}</span>
             </button>
 
             <button
@@ -807,6 +930,66 @@ export default function Home() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ACTIVE ORDER APPROVAL ALERTS (Captain Verification Required) */}
+        {pendingApprovals.length > 0 && (
+          <div
+            className="p-4 rounded border-2 border-dashed space-y-3"
+            style={{
+              backgroundColor: "#FFFBEB",
+              borderColor: "#F59E0B",
+              borderRadius: "6px",
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="animate-pulse text-base">👨‍💼</span>
+                <span className="font-heading text-sm font-bold tracking-wide text-amber-900">
+                  {pendingApprovals.length} ORDER{pendingApprovals.length > 1 ? "S" : ""} AWAITING CAPTAIN VERIFICATION
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-amber-800">
+                Verify guest items before firing to kitchen KOT
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {pendingApprovals.map((batch) => (
+                <div
+                  key={batch.id}
+                  className="p-3 bg-white rounded border border-amber-200 shadow-xs flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading font-black text-sm text-stone-900">
+                        Table {batch.tableNumber}
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
+                        {batch.totalItems} item{batch.totalItems > 1 ? "s" : ""} · ₹{batch.totalAmount}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-stone-500 mt-0.5">
+                      Guest: <span className="font-medium text-stone-700">{batch.customerName || "Dine-in Guest"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedApprovalBatch(batch);
+                        setIsApprovalModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-bold rounded bg-amber-500 text-white cursor-pointer hover:bg-amber-600 active:scale-95 transition-all shadow-xs"
+                    >
+                      Review
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -954,13 +1137,18 @@ export default function Home() {
                 }}
               >
                 <div className="flex items-baseline justify-between">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-heading text-xl font-bold" style={{ color: "var(--ink)" }}>
                       {table.number}
                     </span>
                     {table.joinedBadge && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
                         {table.joinedBadge}
+                      </span>
+                    )}
+                    {table.hasPendingApproval && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-black bg-amber-500 text-white animate-pulse shadow-xs">
+                        ⏳ Approval
                       </span>
                     )}
                   </div>
@@ -1316,6 +1504,34 @@ export default function Home() {
                         Add dishes locked (owner permission required)
                       </div>
                     )}
+
+                    {/* Waiter Approval Callout if Table has pending verification */}
+                    {pendingApprovals.filter(b => b.tableNumber === selectedTable).map(batch => (
+                      <div key={batch.id} className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 space-y-2 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                            <span className="text-base">👨‍💼</span>
+                            <span>Awaiting Captain Approval</span>
+                          </span>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300">
+                            ₹{batch.totalAmount}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800 leading-snug">
+                          {batch.totalItems} guest item(s) are held in queue. Verify at table before firing to the kitchen.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedApprovalBatch(batch);
+                            setIsApprovalModalOpen(true);
+                          }}
+                          className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-xs active:scale-95 transition-all text-center"
+                        >
+                          Verify &amp; Approve Order Slip →
+                        </button>
+                      </div>
+                    ))}
 
                     {/* Table Joining & Moving Controls */}
                     <div className="grid grid-cols-2 gap-2 pt-1">
@@ -2040,6 +2256,208 @@ export default function Home() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Verification Modal (Captain Approval before Kitchen KOT) */}
+      {isApprovalModalOpen && selectedApprovalBatch && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(34, 29, 22, 0.65)" }}
+          onClick={() => {
+            if (!isProcessingApproval) {
+              setIsApprovalModalOpen(false);
+              setShowRejectInput(false);
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-lg p-5 rounded-2xl border shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto space-y-4"
+            style={{
+              backgroundColor: "var(--paper)",
+              borderColor: "var(--hairline)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b pb-3" style={{ borderColor: "var(--hairline)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-700 flex items-center justify-center text-xl border border-amber-500/30">
+                  👨‍💼
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-heading text-xl font-bold text-stone-900">
+                      Table {selectedApprovalBatch.tableNumber} Order Verification
+                    </h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                      Pending
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Guest: <strong className="text-stone-800 font-semibold">{selectedApprovalBatch.customerName || "Dine-in Guest"}</strong> · Held from kitchen until your approval
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isProcessingApproval) {
+                    setIsApprovalModalOpen(false);
+                    setShowRejectInput(false);
+                  }
+                }}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold hover:bg-black/5 cursor-pointer text-stone-400"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Reassurance Notice */}
+            <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+              <span className="text-base">ℹ️</span>
+              <span>
+                Verify this order with the guest at Table {selectedApprovalBatch.tableNumber}. Approving will immediately generate kitchen KOT tickets.
+              </span>
+            </div>
+
+            {/* Item Breakdown List */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-stone-600 uppercase tracking-wider">
+                Order Items ({selectedApprovalBatch.totalItems} Total Qty)
+              </div>
+
+              {(() => {
+                const batchItems = openOrders
+                  .flatMap((o) => o.order_items || [])
+                  .filter((it) => selectedApprovalBatch.itemIds.includes(it.id));
+
+                if (batchItems.length === 0) {
+                  return (
+                    <div className="p-4 rounded-xl border border-dashed bg-white text-center text-xs text-stone-500">
+                      {selectedApprovalBatch.totalItems} item(s) in batch · Total ₹{selectedApprovalBatch.totalAmount}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="divide-y rounded-xl border bg-white overflow-hidden shadow-xs" style={{ borderColor: "var(--hairline)" }}>
+                    {batchItems.map((item) => (
+                      <div key={item.id} className="p-3 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <span
+                            className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-black mt-0.5 border"
+                            style={{
+                              borderColor: item.menu_items?.is_veg ? "#16A34A" : "#DC2626",
+                              color: item.menu_items?.is_veg ? "#16A34A" : "#DC2626",
+                            }}
+                          >
+                            ●
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-stone-900">
+                                {item.menu_items?.name || "Dish"}
+                              </span>
+                              <span className="text-[11px] font-bold px-1.5 py-0.2 rounded bg-stone-100 text-stone-700">
+                                ×{item.qty}
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <div className="text-[11px] text-amber-700 italic mt-0.5">
+                                ✏️ &quot;{item.notes}&quot;
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-xs font-mono font-bold text-stone-800 whitespace-nowrap">
+                          ₹{(Number(item.unit_price) || Number(item.menu_items?.price) || 0) * item.qty}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Total Summary Strip */}
+            <div
+              className="p-3 rounded-xl border flex items-center justify-between font-bold"
+              style={{ backgroundColor: "var(--paper-dim)", borderColor: "var(--hairline)" }}
+            >
+              <span className="text-xs text-stone-600">Total Batch Value</span>
+              <span className="font-heading text-lg text-stone-900">₹{selectedApprovalBatch.totalAmount}</span>
+            </div>
+
+            {/* Rejection Reason Form */}
+            {showRejectInput && (
+              <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 space-y-2 animate-fade-in">
+                <label className="text-xs font-bold text-rose-950 block">
+                  Reason for Rejection (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="e.g. Guest changed mind, dish out of stock"
+                  className="w-full px-3 py-2 text-xs bg-white border border-rose-300 rounded-lg focus:outline-none"
+                />
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectInput(false)}
+                    className="px-3 py-1.5 text-xs text-stone-600 hover:bg-black/5 rounded-lg cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => handleRejectBatch(selectedApprovalBatch.id, rejectionReason)}
+                    className="px-4 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {isProcessingApproval ? "Rejecting..." : "Confirm Rejection"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            {!showRejectInput && (
+              <div className="flex items-center justify-between gap-2 pt-2 border-t" style={{ borderColor: "var(--hairline)" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectInput(true)}
+                  className="px-3.5 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors border border-rose-200"
+                >
+                  ✕ Reject Order
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => setIsApprovalModalOpen(false)}
+                    className="px-3.5 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-lg cursor-pointer"
+                  >
+                    Later
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isProcessingApproval}
+                    onClick={() => handleApproveBatch(selectedApprovalBatch.id)}
+                    className="px-5 py-2 text-xs font-bold text-white rounded-lg cursor-pointer shadow-sm transition-transform active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
+                    style={{ backgroundColor: "var(--rust)" }}
+                  >
+                    <span>🔥</span>
+                    <span>{isProcessingApproval ? "Dispatching..." : "Approve & Fire to Kitchen (KOT)"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

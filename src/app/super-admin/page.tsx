@@ -24,6 +24,7 @@ const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   smartUpsell: true,
   feedbackReview: true,
   loyaltyOffers: true,
+  waiterOrderApproval: false,
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
@@ -1965,6 +1966,12 @@ export default function SuperAdminPage() {
                                 label: "Waiter",
                                 icon: "🛎️",
                                 active: Boolean(r.features?.callWaiter),
+                              },
+                              {
+                                key: "waiterOrderApproval" as const,
+                                label: "Approval",
+                                icon: "👨‍💼",
+                                active: Boolean(r.features?.waiterOrderApproval),
                               },
                               {
                                 key: "mobileNavStyle" as const,
@@ -5501,6 +5508,12 @@ export default function SuperAdminPage() {
                         label: "Call Waiter Service Buzzer",
                         desc: "Diner sounds digital chime for Waiter, Water, or Cleaning",
                         icon: "🛎️",
+                      },
+                      {
+                        key: "waiterOrderApproval" as const,
+                        label: "Waiter Order Verification (Captain Approval)",
+                        desc: "Orders held for waiter verification before dispatching to kitchen KOT",
+                        icon: "👨‍💼",
                       },
                       {
                         key: "dishNotes" as const,

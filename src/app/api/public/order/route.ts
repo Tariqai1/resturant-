@@ -150,15 +150,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "No valid order items could be added." }, { status: 400 });
     }
 
-    const { error: insertItemsError } = await admin
+    const { data: insertedItems, error: insertItemsError } = await admin
       .from("order_items")
-      .insert(itemsToInsert);
+      .insert(itemsToInsert)
+      .select("id, unit_price, qty");
 
     if (insertItemsError) {
       throw new Error(insertItemsError.message || "Failed to save order items.");
     }
 
-    // 5. Update Table Status to Pending if not already Cooking/Served
+    // 5. Check if Waiter/Captain Order Approval is enabled for this restaurant
+    const { getRestaurantFeatures, registerPendingOrderBatch } = await import("@/lib/platform/state");
+    const features = getRestaurantFeatures(table.restaurant_id);
+
+    if (features.waiterOrderApproval) {
+      const insertedItemIds = (insertedItems || []).map((i) => i.id);
+      const totalBatchAmount = (insertedItems || []).reduce((acc, i) => acc + (Number(i.unit_price) * Number(i.qty)), 0);
+      const totalBatchQty = (insertedItems || []).reduce((acc, i) => acc + Number(i.qty), 0);
+
+      registerPendingOrderBatch({
+        orderId: currentOrder!.id,
+        restaurantId: table.restaurant_id,
+        tableId: table.id,
+        tableNumber: table.table_number,
+        customerName: sanitizedCustomerName,
+        itemIds: insertedItemIds,
+        totalAmount: totalBatchAmount,
+        totalItems: totalBatchQty,
+      });
+
+      // Set table status to pending
+      await admin
+        .from("restaurant_tables")
+        .update({ status: "pending" })
+        .eq("id", table.id);
+
+      return NextResponse.json({
+        ok: true,
+        approvalPending: true,
+        message: "Order placed! Our floor captain will verify your items at your table shortly before kitchen dispatch.",
+        orderId: currentOrder!.id,
+        itemCount: itemsToInsert.length,
+      });
+    }
+
+    // 6. Direct Kitchen Dispatch (Approval disabled)
     if (table.status === "empty" || table.status === "served") {
       await admin
         .from("restaurant_tables")
@@ -168,6 +204,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      approvalPending: false,
       message: "Order placed successfully! The kitchen is preparing your meal.",
       orderId: currentOrder!.id,
       itemCount: itemsToInsert.length,

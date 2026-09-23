@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveStaffContext } from "@/lib/auth/staff-context";
-import { getOrderPrepTime, setOrderPrepTime } from "@/lib/platform/state";
+import { getOrderPrepTime, setOrderPrepTime, getRestaurantFeatures, getPendingApprovalItemIds } from "@/lib/platform/state";
 
 export async function GET() {
   try {
@@ -142,12 +142,31 @@ export async function GET() {
       }
     });
 
+    const features = getRestaurantFeatures(staffContext.restaurantId);
+    const unapprovedItemIds = features.waiterOrderApproval
+      ? getPendingApprovalItemIds(staffContext.restaurantId)
+      : new Set<string>();
+
+    // Active orders filtered for verified items only
+    const filteredOrders = (orders || [])
+      .map((ord) => {
+        let items = (ord.order_items as unknown as Array<{ id: string }>) || [];
+        if (unapprovedItemIds.size > 0) {
+          items = items.filter((it) => !unapprovedItemIds.has(it.id));
+        }
+        return {
+          ...ord,
+          order_items: items,
+        };
+      })
+      .filter((ord) => (ord.order_items || []).length > 0);
+
     const dayWiseStats = Object.values(dayWiseMap);
 
     return NextResponse.json({
       ok: true,
       restaurantName: staffContext.restaurantName,
-      orders: (orders || []).map((ord) => {
+      orders: filteredOrders.map((ord) => {
         const tableData = ord.restaurant_tables as unknown as { table_number: string } | null;
         let displayTable = tableData?.table_number || "T--";
         if (ord.table_session_id?.startsWith("joined:")) {
@@ -168,7 +187,7 @@ export async function GET() {
       }),
       todayStats: {
         totalOrders: todayTotal,
-        activeOrders: todayActive,
+        activeOrders: filteredOrders.length,
         completedOrders: todayCompleted,
         dishesCooked: todayDishes,
       },
