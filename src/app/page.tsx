@@ -175,40 +175,92 @@ export default function Home() {
     }
   }, []);
 
-  // High-pitched double buzzer chime for table attention
-  const playBuzzer = useCallback(() => {
+  const [alarmSnoozedUntil, setAlarmSnoozedUntil] = useState<number>(0);
+
+  // Acoustic buzzer chime for table attention with optional escalation
+  const playBuzzer = useCallback((isEscalated = false) => {
     if (!soundEnabled || typeof window === "undefined") return;
     try {
       const audioCtx = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
 
-      // First beep (880 Hz - A5)
-      const osc1 = audioCtx.createOscillator();
-      const gain1 = audioCtx.createGain();
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gain1.gain.setValueAtTime(0.4, audioCtx.currentTime);
-      gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
-      osc1.connect(gain1);
-      gain1.connect(audioCtx.destination);
-      osc1.start();
-      osc1.stop(audioCtx.currentTime + 0.2);
+      if (isEscalated) {
+        // 3-Pulse Urgent Escalation Chime (1100 Hz, 1400 Hz, 1760 Hz)
+        const freqs = [1100, 1400, 1760];
+        freqs.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = "sawtooth";
+          const startTime = audioCtx.currentTime + idx * 0.14;
+          osc.frequency.setValueAtTime(freq, startTime);
+          gain.gain.setValueAtTime(0.55, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.13);
+        });
+      } else {
+        // Standard double beep (880 Hz - A5 & 1318.5 Hz - E6)
+        const osc1 = audioCtx.createOscillator();
+        const gain1 = audioCtx.createGain();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain1.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.18);
+        osc1.connect(gain1);
+        gain1.connect(audioCtx.destination);
+        osc1.start();
+        osc1.stop(audioCtx.currentTime + 0.2);
 
-      // Second higher beep (1318.5 Hz - E6)
-      const osc2 = audioCtx.createOscillator();
-      const gain2 = audioCtx.createGain();
-      osc2.type = "triangle";
-      osc2.frequency.setValueAtTime(1318.5, audioCtx.currentTime + 0.22);
-      gain2.gain.setValueAtTime(0.45, audioCtx.currentTime + 0.22);
-      gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.55);
-      osc2.connect(gain2);
-      gain2.connect(audioCtx.destination);
-      osc2.start(audioCtx.currentTime + 0.22);
-      osc2.stop(audioCtx.currentTime + 0.6);
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.type = "triangle";
+        osc2.frequency.setValueAtTime(1318.5, audioCtx.currentTime + 0.22);
+        gain2.gain.setValueAtTime(0.45, audioCtx.currentTime + 0.22);
+        gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.55);
+        osc2.connect(gain2);
+        gain2.connect(audioCtx.destination);
+        osc2.start(audioCtx.currentTime + 0.22);
+        osc2.stop(audioCtx.currentTime + 0.6);
+      }
     } catch {
       // Audio context might be restricted
     }
   }, [soundEnabled]);
+
+  // Persistent Repeating Audio Alarm Loop (Swiggy/Zomato Delivery-App Pattern)
+  useEffect(() => {
+    if (!soundEnabled) return;
+    const isPersistent = features?.persistentAlarm !== false;
+    if (!isPersistent) return;
+
+    const hasPendingApprovals = pendingApprovals.length > 0;
+    const hasWaiterCalls = waiterCalls.length > 0;
+    if (!hasPendingApprovals && !hasWaiterCalls) return;
+
+    const escalationLimitSec = features?.alarmEscalationSec || 90;
+
+    const alarmInterval = setInterval(() => {
+      if (Date.now() < alarmSnoozedUntil) return;
+
+      let oldestElapsedSec = 0;
+      const now = Date.now();
+      for (const call of waiterCalls) {
+        const sec = Math.floor((now - new Date(call.createdAt).getTime()) / 1000);
+        if (sec > oldestElapsedSec) oldestElapsedSec = sec;
+      }
+      for (const app of pendingApprovals) {
+        const sec = Math.floor((now - new Date(app.createdAt).getTime()) / 1000);
+        if (sec > oldestElapsedSec) oldestElapsedSec = sec;
+      }
+
+      const isCritical = oldestElapsedSec >= escalationLimitSec;
+      playBuzzer(isCritical);
+    }, 15000);
+
+    return () => clearInterval(alarmInterval);
+  }, [soundEnabled, features, pendingApprovals, waiterCalls, alarmSnoozedUntil, playBuzzer]);
 
   const handleEnableAlerts = async () => {
     playBuzzer();
@@ -281,6 +333,24 @@ export default function Home() {
     } catch {
       // ignore
     }
+  };
+
+  const handleWhatsAppDispatch = (
+    type: "order" | "call",
+    data: { tableNumber: string; customerName?: string; totalAmount?: number; totalItems?: number; callType?: string }
+  ) => {
+    const cleanPhone = (features?.whatsappCaptainPhone || "").replace(/[^0-9]/g, "");
+    let text = "";
+    if (type === "order") {
+      text = `⚡ *URGENT ORDER VERIFICATION*\n📍 *Table:* ${data.tableNumber}\n👤 *Guest:* ${data.customerName || "Dine-in Guest"}\n📦 *Items:* ${data.totalItems || 1} · ₹${data.totalAmount || 0}\n\n👉 *Floor Captain:* Please review dishes on Floor Desk before firing to Kitchen KOT!`;
+    } else {
+      const formattedCall = (data.callType || "waiter").toUpperCase();
+      text = `🛎️ *TABLE BUZZER ALERT: ${formattedCall}*\n📍 *Table:* ${data.tableNumber}\n\n👉 *Staff Attention Required Immediately!*`;
+    }
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   // New Order Form & Quick POS state
@@ -921,6 +991,48 @@ export default function Home() {
           </div>
         </header>
 
+        {/* Critical Escalation Banner (Delivery-App Emergency Alert) */}
+        {(() => {
+          const escalationLimitSec = features?.alarmEscalationSec || 90;
+          const hasEscalatedCall = waiterCalls.some(
+            (c) => Math.floor((currentTime - new Date(c.createdAt).getTime()) / 1000) >= escalationLimitSec
+          );
+          const hasEscalatedApproval = pendingApprovals.some(
+            (b) => Math.floor((currentTime - new Date(b.createdAt).getTime()) / 1000) >= escalationLimitSec
+          );
+          const isEmergency = hasEscalatedCall || hasEscalatedApproval;
+
+          if (!isEmergency) return null;
+
+          return (
+            <div className="p-3.5 bg-red-600 text-white rounded-lg shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-pulse border-2 border-red-700">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🚨</span>
+                <div>
+                  <div className="font-heading font-black text-sm tracking-wide uppercase">
+                    Critical Escalation: Table Awaiting Service (&gt; {escalationLimitSec}s)
+                  </div>
+                  <div className="text-xs text-red-100">
+                    One or more tables have exceeded the maximum service wait time. Floor Captain / Manager attention required immediately!
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAlarmSnoozedUntil(Date.now() + 120000);
+                    notify("Alarm silenced for 2 minutes");
+                  }}
+                  className="px-3 py-1.5 bg-white text-red-700 text-xs font-bold rounded shadow-sm hover:bg-red-50 cursor-pointer"
+                >
+                  🔕 Silence Alarm (2m)
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ACTIVE TABLE BUZZER ALERTS (Call Waiter / Water / Bill) */}
         {waiterCalls.length > 0 && (
           <div
@@ -931,16 +1043,46 @@ export default function Home() {
               borderRadius: "6px",
             }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="animate-bounce text-base">🛎️</span>
                 <span className="font-heading text-sm font-bold tracking-wide" style={{ color: "var(--rust)" }}>
                   {waiterCalls.length} ACTIVE TABLE BUZZER{waiterCalls.length > 1 ? "S" : ""}
                 </span>
+                {features?.persistentAlarm !== false && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-bold hidden sm:inline">
+                    🚨 Alarm Loop: 15s Pulse
+                  </span>
+                )}
               </div>
-              <span className="text-[11px] font-medium" style={{ color: "var(--ink-soft)" }}>
-                Tap &apos;Acknowledge&apos; once staff attends the table
-              </span>
+
+              <div className="flex items-center gap-2">
+                {features?.persistentAlarm !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (Date.now() < alarmSnoozedUntil) {
+                        setAlarmSnoozedUntil(0);
+                        notify("Alarm loop resumed");
+                      } else {
+                        setAlarmSnoozedUntil(Date.now() + 120000);
+                        notify("Alarm silenced for 2 minutes");
+                      }
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded border cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: Date.now() < alarmSnoozedUntil ? "#F5F5F5" : "#FFFFFF",
+                      borderColor: "var(--hairline)",
+                      color: Date.now() < alarmSnoozedUntil ? "#757575" : "var(--rust)",
+                    }}
+                  >
+                    {Date.now() < alarmSnoozedUntil ? "🔔 Resume Sound" : "🔕 Snooze Alarm (2m)"}
+                  </button>
+                )}
+                <span className="text-[11px] font-medium hidden md:inline" style={{ color: "var(--ink-soft)" }}>
+                  Tap &apos;Attended&apos; once staff reaches table
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
@@ -961,18 +1103,31 @@ export default function Home() {
                     : call.type === "clean"
                     ? "✨"
                     : "🛎️";
-                const elapsedMin = Math.max(
+                const elapsedSec = Math.max(
                   0,
-                  Math.floor((currentTime - new Date(call.createdAt).getTime()) / 60000)
+                  Math.floor((currentTime - new Date(call.createdAt).getTime()) / 1000)
                 );
+                const elapsedText =
+                  elapsedSec < 60
+                    ? `${elapsedSec}s ago`
+                    : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s ago`;
+                const escalationLimitSec = features?.alarmEscalationSec || 90;
+                const isEscalated = elapsedSec >= escalationLimitSec;
+                const isElevated = elapsedSec >= 60 && !isEscalated;
 
                 return (
                   <div
                     key={call.id}
-                    className="p-3 rounded border flex items-center justify-between gap-3 shadow-sm bg-white"
+                    className={`p-3 rounded border flex items-center justify-between gap-3 shadow-sm bg-white transition-all ${
+                      isEscalated
+                        ? "border-red-500 bg-red-50/50 shadow-md ring-1 ring-red-400"
+                        : isElevated
+                        ? "border-amber-400 bg-amber-50/30"
+                        : ""
+                    }`}
                     style={{
-                      borderColor: "var(--hairline)",
-                      borderLeft: "4px solid var(--rust)",
+                      borderColor: isEscalated ? "#EF4444" : isElevated ? "#F59E0B" : "var(--hairline)",
+                      borderLeft: `4px solid ${isEscalated ? "#DC2626" : isElevated ? "#D97706" : "var(--rust)"}`,
                     }}
                   >
                     <div>
@@ -982,25 +1137,54 @@ export default function Home() {
                           Table {call.tableNumber}
                         </span>
                       </div>
-                      <div className="text-xs font-semibold mt-0.5" style={{ color: "var(--rust)" }}>
+                      <div className="text-xs font-semibold mt-0.5" style={{ color: isEscalated ? "#DC2626" : "var(--rust)" }}>
                         {callLabel}
                       </div>
-                      <div className="text-[10px]" style={{ color: "var(--ink-soft)" }}>
-                        {elapsedMin === 0 ? "Just now" : `${elapsedMin} min ago`}
+                      <div className="mt-1">
+                        {isEscalated ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 animate-pulse">
+                            ⚠️ Escalated ({elapsedText})
+                          </span>
+                        ) : isElevated ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                            ⏳ Warning ({elapsedText})
+                          </span>
+                        ) : (
+                          <span className="text-[10px]" style={{ color: "var(--ink-soft)" }}>
+                            {elapsedText}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleResolveWaiterCall(call.id)}
-                      className="px-3 py-1.5 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95"
-                      style={{
-                        backgroundColor: "var(--sage)",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      Attended ✓
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 1-Tap WhatsApp Forward Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleWhatsAppDispatch("call", {
+                            tableNumber: call.tableNumber,
+                            callType: call.type,
+                          })
+                        }
+                        className="px-2 py-1.5 rounded text-[11px] font-bold border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                        title="Alert Captain / Floor Group on WhatsApp"
+                      >
+                        💬 WhatsApp
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleResolveWaiterCall(call.id)}
+                        className="px-3 py-1.5 rounded text-xs font-bold text-white cursor-pointer transition-transform active:scale-95 shadow-2xs"
+                        style={{
+                          backgroundColor: "var(--sage)",
+                          borderRadius: "4px",
+                        }}
+                      >
+                        Attended ✓
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -1018,52 +1202,127 @@ export default function Home() {
               borderRadius: "6px",
             }}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="animate-pulse text-base">👨‍💼</span>
                 <span className="font-heading text-sm font-bold tracking-wide text-amber-900">
                   {pendingApprovals.length} ORDER{pendingApprovals.length > 1 ? "S" : ""} AWAITING CAPTAIN VERIFICATION
                 </span>
+                {features?.persistentAlarm !== false && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold hidden sm:inline">
+                    🚨 Alarm Loop Active
+                  </span>
+                )}
               </div>
-              <span className="text-[11px] font-medium text-amber-800">
-                Verify guest items before firing to kitchen KOT
-              </span>
+
+              <div className="flex items-center gap-2">
+                {features?.persistentAlarm !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (Date.now() < alarmSnoozedUntil) {
+                        setAlarmSnoozedUntil(0);
+                        notify("Alarm loop resumed");
+                      } else {
+                        setAlarmSnoozedUntil(Date.now() + 120000);
+                        notify("Alarm silenced for 2 minutes");
+                      }
+                    }}
+                    className="px-2.5 py-1 text-[11px] font-bold rounded border border-amber-300 bg-white text-amber-900 cursor-pointer hover:bg-amber-50"
+                  >
+                    {Date.now() < alarmSnoozedUntil ? "🔔 Resume Sound" : "🔕 Snooze Alarm (2m)"}
+                  </button>
+                )}
+                <span className="text-[11px] font-medium text-amber-800 hidden md:inline">
+                  Verify guest items before firing to kitchen KOT
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {pendingApprovals.map((batch) => (
-                <div
-                  key={batch.id}
-                  className="p-3 bg-white rounded border border-amber-200 shadow-xs flex items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-heading font-black text-sm text-stone-900">
-                        Table {batch.tableNumber}
-                      </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
-                        {batch.totalItems} item{batch.totalItems > 1 ? "s" : ""} · ₹{batch.totalAmount}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-stone-500 mt-0.5">
-                      Guest: <span className="font-medium text-stone-700">{batch.customerName || "Dine-in Guest"}</span>
-                    </div>
-                  </div>
+              {pendingApprovals.map((batch) => {
+                const elapsedSec = Math.max(
+                  0,
+                  Math.floor((currentTime - new Date(batch.createdAt).getTime()) / 1000)
+                );
+                const elapsedText =
+                  elapsedSec < 60
+                    ? `${elapsedSec}s ago`
+                    : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s ago`;
+                const escalationLimitSec = features?.alarmEscalationSec || 90;
+                const isEscalated = elapsedSec >= escalationLimitSec;
+                const isElevated = elapsedSec >= 60 && !isEscalated;
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedApprovalBatch(batch);
-                        setIsApprovalModalOpen(true);
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-bold rounded bg-amber-500 text-white cursor-pointer hover:bg-amber-600 active:scale-95 transition-all shadow-xs"
-                    >
-                      Review
-                    </button>
+                return (
+                  <div
+                    key={batch.id}
+                    className={`p-3 bg-white rounded border shadow-xs flex items-center justify-between gap-3 transition-all ${
+                      isEscalated
+                        ? "border-red-500 bg-red-50/50 shadow-md ring-1 ring-red-400"
+                        : isElevated
+                        ? "border-amber-400 bg-amber-50/30"
+                        : "border-amber-200"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-black text-sm text-stone-900">
+                          Table {batch.tableNumber}
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
+                          {batch.totalItems} item{batch.totalItems > 1 ? "s" : ""} · ₹{batch.totalAmount}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-stone-500 mt-0.5">
+                        Guest: <span className="font-medium text-stone-700">{batch.customerName || "Dine-in Guest"}</span>
+                      </div>
+                      <div className="mt-1">
+                        {isEscalated ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 animate-pulse">
+                            ⚠️ Escalated ({elapsedText})
+                          </span>
+                        ) : isElevated ? (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                            ⏳ Warning ({elapsedText})
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-500">{elapsedText}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 1-Tap WhatsApp Forward Button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleWhatsAppDispatch("order", {
+                            tableNumber: batch.tableNumber,
+                            customerName: batch.customerName || undefined,
+                            totalItems: batch.totalItems,
+                            totalAmount: batch.totalAmount,
+                          })
+                        }
+                        className="px-2 py-1.5 rounded text-[11px] font-bold border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                        title="Forward Order to Captain on WhatsApp"
+                      >
+                        💬 WhatsApp
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedApprovalBatch(batch);
+                          setIsApprovalModalOpen(true);
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded bg-amber-500 text-white cursor-pointer hover:bg-amber-600 active:scale-95 transition-all shadow-xs"
+                      >
+                        Review
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

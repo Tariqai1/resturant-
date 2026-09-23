@@ -25,6 +25,11 @@ const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   feedbackReview: true,
   loyaltyOffers: true,
   waiterOrderApproval: true,
+  persistentAlarm: true,
+  alarmEscalationSec: 90,
+  whatsappAlerts: false,
+  whatsappCaptainPhone: "",
+  whatsappWebhookUrl: "",
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
@@ -1972,6 +1977,18 @@ export default function SuperAdminPage() {
                                 label: "Approval",
                                 icon: "👨‍💼",
                                 active: Boolean(r.features?.waiterOrderApproval),
+                              },
+                              {
+                                key: "persistentAlarm" as const,
+                                label: "Alarm Loop",
+                                icon: "🚨",
+                                active: Boolean(r.features?.persistentAlarm !== false),
+                              },
+                              {
+                                key: "whatsappAlerts" as const,
+                                label: "WhatsApp Bot",
+                                icon: "📱",
+                                active: Boolean(r.features?.whatsappAlerts),
                               },
                               {
                                 key: "mobileNavStyle" as const,
@@ -5516,6 +5533,18 @@ export default function SuperAdminPage() {
                         icon: "👨‍💼",
                       },
                       {
+                        key: "persistentAlarm" as const,
+                        label: "Persistent Acoustic Alarm Loop",
+                        desc: "Repeats chime every 15s until waiter attends the table or reviews order",
+                        icon: "🚨",
+                      },
+                      {
+                        key: "whatsappAlerts" as const,
+                        label: "Automated WhatsApp Captain Dispatch",
+                        desc: "Instantly routes buzzer alerts and order approvals to captain mobile / group",
+                        icon: "📱",
+                      },
+                      {
                         key: "dishNotes" as const,
                         label: "Cooking Instructions Per Dish",
                         desc: "Allows customer to add 'less spicy', 'crispy' instructions",
@@ -5573,6 +5602,115 @@ export default function SuperAdminPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Section 1B: Delivery-App Alarm & WhatsApp Gateway Dispatch Engine */}
+                <div className="space-y-3 p-4 bg-[#14110E] border border-[#2D251F] rounded-2xl">
+                  <div className="flex items-center justify-between border-b border-[#241E18] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🚨</span>
+                      <div>
+                        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#D96B27] block">
+                          Delivery-App Alarm &amp; WhatsApp Bot Dispatch
+                        </span>
+                        <div className="text-[11px] text-[#A89F91]">
+                          High-reliability alerting prevents missed table orders &amp; staff buzzers
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                    {/* Escalation Threshold Selector */}
+                    <div className="p-3 bg-[#1A1612] border border-[#2D251F] rounded-xl space-y-1.5">
+                      <label className="text-xs font-bold text-white block">
+                        ⏱️ Manager Escalation Timeout
+                      </label>
+                      <p className="text-[10px] text-[#8C8275]">
+                        Alert shifts from amber to flashing critical red and triggers manager alarm
+                      </p>
+                      <select
+                        value={cockpitResto.features?.alarmEscalationSec ?? 90}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            features: {
+                              ...cur,
+                              alarmEscalationSec: val,
+                            },
+                          });
+                        }}
+                        className="w-full bg-[#110E0B] border border-[#302720] rounded-lg px-3 py-1.5 text-xs text-white"
+                      >
+                        <option value={45}>45 Seconds (High Density)</option>
+                        <option value={60}>60 Seconds (1 Minute)</option>
+                        <option value={90}>90 Seconds (Recommended Standard)</option>
+                        <option value={120}>120 Seconds (2 Minutes)</option>
+                        <option value={180}>180 Seconds (Casual Dining)</option>
+                      </select>
+                    </div>
+
+                    {/* Captain WhatsApp Recipient Phone */}
+                    <div className="p-3 bg-[#1A1612] border border-[#2D251F] rounded-xl space-y-1.5">
+                      <label className="text-xs font-bold text-white block">
+                        📱 Captain / Floor WhatsApp Group Number
+                      </label>
+                      <p className="text-[10px] text-[#8C8275]">
+                        Phone number with country code (e.g. 919876543210) for 1-tap dispatch
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="e.g. 919876543210"
+                        value={cockpitResto.features?.whatsappCaptainPhone || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            features: {
+                              ...cur,
+                              whatsappCaptainPhone: val,
+                            },
+                          });
+                        }}
+                        className="w-full bg-[#110E0B] border border-[#302720] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#5A5044]"
+                      />
+                    </div>
+
+                    {/* Custom Webhook / Open-Source Gateway URL */}
+                    <div className="md:col-span-2 p-3 bg-[#1A1612] border border-[#2D251F] rounded-xl space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white block">
+                          🔗 Automated WhatsApp Gateway Webhook URL (Optional / Free Self-Hosted)
+                        </label>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
+                          Baileys / Twilio / Evolution API
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[#8C8275]">
+                        Connect any free self-hosted WhatsApp engine or Meta webhook. Orders &amp; buzzers are dispatched in the background with zero per-message cost.
+                      </p>
+                      <input
+                        type="text"
+                        placeholder="https://api.yourwhatsappgateway.com/webhook/send"
+                        value={cockpitResto.features?.whatsappWebhookUrl || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const cur = cockpitResto.features || DEFAULT_RESTAURANT_FEATURES;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            features: {
+                              ...cur,
+                              whatsappWebhookUrl: val,
+                            },
+                          });
+                        }}
+                        className="w-full bg-[#110E0B] border border-[#302720] rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-[#5A5044]"
+                      />
+                    </div>
                   </div>
                 </div>
 

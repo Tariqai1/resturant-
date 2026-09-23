@@ -57,6 +57,23 @@ export async function POST(request: NextRequest) {
       paymentMode: paymentMode || undefined,
     });
 
+    // Trigger background notification dispatch (WhatsApp/Webhook)
+    try {
+      const origin = request.nextUrl.origin || "http://localhost:3000";
+      fetch(`${origin}/api/notifications/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "WAITER_CALL",
+          restaurantId: table.restaurant_id,
+          tableNumber: table.table_number,
+          callType: type || "waiter",
+        }),
+      }).catch(() => undefined);
+    } catch {
+      // non-blocking
+    }
+
     return NextResponse.json({
       ok: true,
       message: `Buzzer sent! Staff notified for Table ${table.table_number}.`,

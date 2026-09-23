@@ -92,6 +92,11 @@ export type RestaurantFeatures = {
   feedbackReview: boolean;    // ⭐ 5-star Google review booster
   loyaltyOffers?: boolean;    // 🎁 Dynamic discount banner, scratch card & referrals
   waiterOrderApproval?: boolean; // 👨‍💼 Captain/waiter verification required before kitchen dispatch
+  persistentAlarm?: boolean;     // 🚨 Swiggy/Zomato style repeating acoustic alarm until acknowledged
+  alarmEscalationSec?: number;   // ⏱️ Seconds before escalating to Manager (Default: 90)
+  whatsappAlerts?: boolean;      // 📱 Automated WhatsApp Captain / Group Dispatch
+  whatsappCaptainPhone?: string; // Recipient Phone or WhatsApp group number (e.g. 919876543210)
+  whatsappWebhookUrl?: string;   // Optional custom WhatsApp/Webhook gateway URL
   mobileNavStyle?: "bottom_bar" | "sidebar"; // 📱 Mobile Navigation Style (Default: 'bottom_bar')
   mobileSheetModals?: boolean; // 📲 Native Bottom Sheet Drawers for mobile forms (Default: true)
   autoMobileCards?: boolean;  // 🖼️ Auto-switch from dense tables to touch cards on mobile (Default: true)
@@ -107,6 +112,11 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   feedbackReview: true,
   loyaltyOffers: true,
   waiterOrderApproval: true,
+  persistentAlarm: true,
+  alarmEscalationSec: 90,
+  whatsappAlerts: false,
+  whatsappCaptainPhone: "",
+  whatsappWebhookUrl: "",
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,

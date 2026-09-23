@@ -185,6 +185,25 @@ export async function POST(request: NextRequest) {
         .update({ status: "pending" })
         .eq("id", table.id);
 
+      // Trigger background notification dispatch (WhatsApp/Webhook)
+      try {
+        const origin = request.nextUrl.origin || "http://localhost:3000";
+        fetch(`${origin}/api/notifications/dispatch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "ORDER_APPROVAL",
+            restaurantId: table.restaurant_id,
+            tableNumber: table.table_number,
+            customerName: sanitizedCustomerName,
+            totalItems: totalBatchQty,
+            totalAmount: totalBatchAmount,
+          }),
+        }).catch(() => undefined);
+      } catch {
+        // non-blocking
+      }
+
       return NextResponse.json({
         ok: true,
         approvalPending: true,
