@@ -24,7 +24,7 @@ const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   smartUpsell: true,
   feedbackReview: true,
   loyaltyOffers: true,
-  waiterOrderApproval: false,
+  waiterOrderApproval: true,
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,

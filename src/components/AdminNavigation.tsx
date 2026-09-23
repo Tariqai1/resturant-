@@ -47,11 +47,10 @@ export default function AdminNavigation({
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
 
+  const userRole = currentUser?.role?.toLowerCase() || "";
   const isOwnerOrManager =
-    !currentUser?.role ||
-    currentUser.role === "owner" ||
-    currentUser.role === "manager" ||
-    currentUser.role === "admin";
+    Boolean(isSuperAdmin) ||
+    ["owner", "manager", "admin"].includes(userRole);
 
   const navItems = [
     {
@@ -63,15 +62,19 @@ export default function AdminNavigation({
       badge: occupiedTablesCount > 0 ? `${occupiedTablesCount} active` : null,
       badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
     },
-    {
-      key: "tables",
-      label: "Floor Layout & QR",
-      shortLabel: "Tables",
-      href: "/tables",
-      icon: "🪑",
-      badge: totalTablesCount !== undefined ? `${totalTablesCount} tables` : null,
-      badgeColor: "bg-stone-800 text-stone-300 border-stone-700",
-    },
+    ...(isOwnerOrManager
+      ? [
+          {
+            key: "tables",
+            label: "Floor Layout & QR",
+            shortLabel: "Tables",
+            href: "/tables",
+            icon: "🪑",
+            badge: totalTablesCount !== undefined ? `${totalTablesCount} tables` : null,
+            badgeColor: "bg-stone-800 text-stone-300 border-stone-700",
+          },
+        ]
+      : []),
     {
       key: "kitchen",
       label: "Kitchen Rail (KDS)",
@@ -81,17 +84,17 @@ export default function AdminNavigation({
       badge: pendingKitchenCount > 0 ? `${pendingKitchenCount} pending` : null,
       badgeColor: "bg-red-500/20 text-red-300 border-red-500/40",
     },
-    {
-      key: "menu",
-      label: "Menu & Stock",
-      shortLabel: "Menu",
-      href: "/menu",
-      icon: "📖",
-      badge: totalMenuItemsCount !== undefined ? `${totalMenuItemsCount}` : null,
-      badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    },
     ...(isOwnerOrManager
       ? [
+          {
+            key: "menu",
+            label: "Menu & Stock",
+            shortLabel: "Menu",
+            href: "/menu",
+            icon: "📖",
+            badge: totalMenuItemsCount !== undefined ? `${totalMenuItemsCount}` : null,
+            badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+          },
           {
             key: "staff",
             label: "Staff & Roles",

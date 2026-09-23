@@ -164,9 +164,16 @@ export default function Home() {
   const [kitchenTickets, setKitchenTickets] = useState<KitchenTicket[]>([]);
   const [waiterCalls, setWaiterCalls] = useState<WaiterCall[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [notificationPerm, setNotificationPerm] = useState<NotificationPermission>("default");
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
   const previousCallsCountRef = useRef(0);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPerm(Notification.permission);
+    }
+  }, []);
 
   // High-pitched double buzzer chime for table attention
   const playBuzzer = useCallback(() => {
@@ -202,6 +209,31 @@ export default function Home() {
       // Audio context might be restricted
     }
   }, [soundEnabled]);
+
+  const handleEnableAlerts = async () => {
+    playBuzzer();
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setNotificationPerm(perm);
+        if (perm === "granted") {
+          notify("🔔 Browser alerts & buzzer audio unlocked!");
+          try {
+            new Notification("Floor Desk Alerts Active", {
+              body: "You will receive real-time chimes and desktop popups for table calls and waiter approvals.",
+              icon: "/favicon.ico",
+            });
+          } catch {
+            // ignore
+          }
+        } else if (perm === "denied") {
+          notify("⚠️ Browser notifications were blocked. Please enable them in your browser site permissions.");
+        }
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const handleSetOrderPrepTime = async (orderId: string, minutes: number) => {
     try {
@@ -306,6 +338,18 @@ export default function Home() {
           const calls: WaiterCall[] = data.waiterCalls || [];
           if (calls.length > previousCallsCountRef.current) {
             playBuzzer();
+            const latestCall = calls[calls.length - 1];
+            if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+              try {
+                new Notification(`🛎️ Table ${latestCall.tableNumber} Buzzer`, {
+                  body: `Guest requested ${latestCall.type.toUpperCase()}. Tap to attend.`,
+                  icon: "/favicon.ico",
+                  tag: latestCall.id,
+                });
+              } catch {
+                // ignore
+              }
+            }
           }
           previousCallsCountRef.current = calls.length;
           setWaiterCalls(calls);
@@ -314,7 +358,20 @@ export default function Home() {
           const approvals: PendingOrderApprovalBatch[] = data.pendingApprovals || [];
           if (approvals.length > previousApprovalsCountRef.current) {
             playBuzzer();
-            notify(`⚡ New Order awaiting Captain Approval: Table ${approvals[approvals.length - 1].tableNumber}`);
+            const latestBatch = approvals[approvals.length - 1];
+            notify(`⚡ New Order awaiting Captain Approval: Table ${latestBatch.tableNumber}`);
+
+            if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+              try {
+                new Notification(`⚡ Table ${latestBatch.tableNumber} Order Awaiting Verification`, {
+                  body: `${latestBatch.totalItems} items · ₹${latestBatch.totalAmount} (${latestBatch.customerName || "Dine-in Guest"}). Tap to review & fire to kitchen.`,
+                  icon: "/favicon.ico",
+                  tag: latestBatch.id,
+                });
+              } catch {
+                // ignore
+              }
+            }
           }
           previousApprovalsCountRef.current = approvals.length;
           setPendingApprovals(approvals);
@@ -383,10 +440,10 @@ export default function Home() {
   }
 
   // Permissions calculation
+  const userRole = currentUser?.role?.toLowerCase() || "";
   const isOwnerOrManager =
-    !currentUser?.role ||
-    ["owner", "manager", "admin"].includes(currentUser.role.toLowerCase()) ||
-    isSuperAdmin;
+    Boolean(isSuperAdmin) ||
+    ["owner", "manager", "admin"].includes(userRole);
   const canEditOrders = isOwnerOrManager || Boolean(currentUser?.permissions?.canEditOrders);
   const canDeleteOrders = isOwnerOrManager || Boolean(currentUser?.permissions?.canDeleteOrders);
 
@@ -752,87 +809,104 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Audio Buzzer Toggle */}
+            {/* Audio Buzzer & Push Notification Unlock Button */}
             <button
               type="button"
-              onClick={() => setSoundEnabled(!soundEnabled)}
+              onClick={notificationPerm !== "granted" ? handleEnableAlerts : () => setSoundEnabled(!soundEnabled)}
               className="px-3 py-2 rounded text-xs font-semibold border cursor-pointer flex items-center gap-1.5 transition-colors"
               style={{
-                backgroundColor: soundEnabled ? "var(--paper-dim)" : "#FDF2F0",
-                borderColor: soundEnabled ? "var(--hairline)" : "#F5C6CB",
-                color: soundEnabled ? "var(--ink)" : "var(--brick)",
+                backgroundColor: notificationPerm === "granted" && soundEnabled ? "var(--paper-dim)" : "#FFFBEB",
+                borderColor: notificationPerm === "granted" && soundEnabled ? "var(--hairline)" : "#FCD34D",
+                color: notificationPerm === "granted" && soundEnabled ? "var(--ink)" : "#B45309",
               }}
-              title={soundEnabled ? "Buzzer sound active" : "Buzzer muted"}
+              title={
+                notificationPerm !== "granted"
+                  ? "Click to enable popup notifications and buzzer audio"
+                  : soundEnabled
+                  ? "Buzzer active"
+                  : "Buzzer muted"
+              }
             >
-              <span>{soundEnabled ? "🔔" : "🔕"}</span>
-              <span className="hidden sm:inline">{soundEnabled ? "Buzzer On" : "Buzzer Muted"}</span>
+              <span>{notificationPerm !== "granted" ? "⚡" : soundEnabled ? "🔔" : "🔕"}</span>
+              <span className="hidden sm:inline">
+                {notificationPerm !== "granted"
+                  ? "Enable Alerts"
+                  : soundEnabled
+                  ? "Alerts Active"
+                  : "Alerts Muted"}
+              </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsShareMenuOpen(true)}
-              className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-              style={{
-                backgroundColor: "#E8F5E9",
-                color: "#1B5E20",
-                borderColor: "#A5D6A7",
-                borderRadius: "5px",
-              }}
-              title="Share Customer Digital Menu Link & QR"
-            >
-              <span>📤</span>
-              <span className="hidden sm:inline">Share Menu</span>
-            </button>
+            {/* Owner & Manager Controls Only */}
+            {isOwnerOrManager && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsShareMenuOpen(true)}
+                  className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                  style={{
+                    backgroundColor: "#E8F5E9",
+                    color: "#1B5E20",
+                    borderColor: "#A5D6A7",
+                    borderRadius: "5px",
+                  }}
+                  title="Share Customer Digital Menu Link & QR"
+                >
+                  <span>📤</span>
+                  <span className="hidden sm:inline">Share Menu</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setIsUpsellModalOpen(true)}
-              className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-              style={{
-                backgroundColor: upsellConfig.enabled ? "#FFF8E1" : "#F5F5F5",
-                color: upsellConfig.enabled ? "#B78103" : "#757575",
-                borderColor: upsellConfig.enabled ? "#FFE082" : "#E0E0E0",
-                borderRadius: "5px",
-              }}
-              title="Configure Smart Upsell & Basket Pairing"
-            >
-              <span>💡</span>
-              <span className="hidden sm:inline">Smart Upsell</span>
-              {upsellConfig.ownerCanManageUpsell === false && <span className="text-[10px]">🔒</span>}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsUpsellModalOpen(true)}
+                  className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                  style={{
+                    backgroundColor: upsellConfig.enabled ? "#FFF8E1" : "#F5F5F5",
+                    color: upsellConfig.enabled ? "#B78103" : "#757575",
+                    borderColor: upsellConfig.enabled ? "#FFE082" : "#E0E0E0",
+                    borderRadius: "5px",
+                  }}
+                  title="Configure Smart Upsell & Basket Pairing"
+                >
+                  <span>💡</span>
+                  <span className="hidden sm:inline">Smart Upsell</span>
+                  {upsellConfig.ownerCanManageUpsell === false && <span className="text-[10px]">🔒</span>}
+                </button>
 
-            {/* Captain Verification Toggle */}
-            <button
-              type="button"
-              onClick={async () => {
-                const current = Boolean(features?.waiterOrderApproval);
-                const next = !current;
-                try {
-                  const res = await fetch("/api/restaurant/features", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ waiterOrderApproval: next }),
-                  });
-                  if (res.ok) {
-                    setFeatures((prev) => (prev ? { ...prev, waiterOrderApproval: next } : null));
-                    notify(next ? "Waiter Order Verification Enabled" : "Direct Kitchen KOT Enabled (Verification Disabled)");
-                  }
-                } catch {
-                  // ignore
-                }
-              }}
-              className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-              style={{
-                backgroundColor: features?.waiterOrderApproval ? "#FFF8E1" : "#F5F5F5",
-                color: features?.waiterOrderApproval ? "#B78103" : "#757575",
-                borderColor: features?.waiterOrderApproval ? "#FFE082" : "#E0E0E0",
-                borderRadius: "5px",
-              }}
-              title="Toggle Waiter / Captain Order Verification before Kitchen Dispatch"
-            >
-              <span>👨‍💼</span>
-              <span className="hidden sm:inline">Captain Verification: {features?.waiterOrderApproval ? "ON" : "OFF"}</span>
-            </button>
+                {/* Captain Verification Toggle */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const current = Boolean(features?.waiterOrderApproval);
+                    const next = !current;
+                    try {
+                      const res = await fetch("/api/restaurant/features", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ waiterOrderApproval: next }),
+                      });
+                      if (res.ok) {
+                        setFeatures((prev) => (prev ? { ...prev, waiterOrderApproval: next } : null));
+                        notify(next ? "Waiter Order Verification Enabled" : "Direct Kitchen KOT Enabled (Verification Disabled)");
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                  style={{
+                    backgroundColor: features?.waiterOrderApproval ? "#FFF8E1" : "#F5F5F5",
+                    color: features?.waiterOrderApproval ? "#B78103" : "#757575",
+                    borderColor: features?.waiterOrderApproval ? "#FFE082" : "#E0E0E0",
+                    borderRadius: "5px",
+                  }}
+                  title="Toggle Waiter / Captain Order Verification before Kitchen Dispatch"
+                >
+                  <span>👨‍💼</span>
+                  <span className="hidden sm:inline">Captain Verification: {features?.waiterOrderApproval ? "ON" : "OFF"}</span>
+                </button>
+              </>
+            )}
 
             <button
               onClick={() => {
@@ -994,82 +1068,131 @@ export default function Home() {
           </div>
         )}
 
-        {/* Real Hierarchy: One Dominant Hero Metric + Grouped Secondary Stats */}
-        <section className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-stretch">
-          {/* Dominant Hero Metric: Today's Revenue */}
-          <div
-            className="lg:col-span-2 p-5 rounded"
-            style={{
-              backgroundColor: "var(--paper)",
-              border: "1.5px solid var(--hairline)",
-              boxShadow: "var(--shadow-md)",
-            }}
-          >
-            <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>
-              Today&apos;s revenue
-            </div>
-            <div className="font-heading text-4xl font-bold mt-1" style={{ color: "var(--rust)" }}>
-              ₹{metrics.todayRevenue.toLocaleString("en-IN")}
-            </div>
-            <div className="text-xs mt-2 font-medium" style={{ color: "var(--sage)" }}>
-              Gross settled sales for the current shift
-            </div>
-          </div>
-
-          {/* Grouped Secondary Operational Stats */}
-          <div
-            className="lg:col-span-2 p-5 rounded flex flex-col justify-between"
-            style={{
-              backgroundColor: "var(--paper-dim)",
-              border: "1px solid var(--hairline)",
-            }}
-          >
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
-                  Dispatched
-                </div>
-                <div className="font-heading text-2xl font-bold mt-0.5" style={{ color: "var(--ink)" }}>
-                  {metrics.dispatchedOrders}
-                </div>
-                <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
-                  orders today
-                </div>
+        {/* Metrics Section: Executive Revenue for Owners/Managers, Operational Service Stats for Waiters */}
+        {isOwnerOrManager ? (
+          <section className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-stretch">
+            {/* Dominant Hero Metric: Today's Revenue */}
+            <div
+              className="lg:col-span-2 p-5 rounded"
+              style={{
+                backgroundColor: "var(--paper)",
+                border: "1.5px solid var(--hairline)",
+                boxShadow: "var(--shadow-md)",
+              }}
+            >
+              <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>
+                Today&apos;s revenue
               </div>
-
-              <div>
-                <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
-                  Average bill
-                </div>
-                <div className="font-heading text-2xl font-bold mt-0.5" style={{ color: "var(--ink)" }}>
-                  ₹{metrics.avgOrderValue}
-                </div>
-                <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
-                  per order
-                </div>
+              <div className="font-heading text-4xl font-bold mt-1" style={{ color: "var(--rust)" }}>
+                ₹{metrics.todayRevenue.toLocaleString("en-IN")}
               </div>
-
-              <div>
-                <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
-                  Attention
-                </div>
-                <div
-                  className="font-heading text-2xl font-bold mt-0.5"
-                  style={{ color: metrics.needsAttentionCount > 0 ? "var(--brick)" : "var(--sage)" }}
-                >
-                  {metrics.needsAttentionCount}
-                </div>
-                <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
-                  tables waiting
-                </div>
+              <div className="text-xs mt-2 font-medium" style={{ color: "var(--sage)" }}>
+                Gross settled sales for the current shift
               </div>
             </div>
 
-            <div className="pt-3 mt-3 border-t border-dashed text-xs" style={{ borderColor: "var(--hairline)", color: "var(--ink-soft)" }}>
-              {occupiedCount} of {floorTables.length} tables currently seated
+            {/* Grouped Secondary Operational Stats */}
+            <div
+              className="lg:col-span-2 p-5 rounded flex flex-col justify-between"
+              style={{
+                backgroundColor: "var(--paper-dim)",
+                border: "1px solid var(--hairline)",
+              }}
+            >
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
+                    Dispatched
+                  </div>
+                  <div className="font-heading text-2xl font-bold mt-0.5" style={{ color: "var(--ink)" }}>
+                    {metrics.dispatchedOrders}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
+                    orders today
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
+                    Average bill
+                  </div>
+                  <div className="font-heading text-2xl font-bold mt-0.5" style={{ color: "var(--ink)" }}>
+                    ₹{metrics.avgOrderValue}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
+                    per order
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs" style={{ color: "var(--ink-soft)" }}>
+                    Attention
+                  </div>
+                  <div
+                    className="font-heading text-2xl font-bold mt-0.5"
+                    style={{ color: metrics.needsAttentionCount > 0 ? "var(--brick)" : "var(--sage)" }}
+                  >
+                    {metrics.needsAttentionCount}
+                  </div>
+                  <div className="text-[11px]" style={{ color: "var(--ink-soft)" }}>
+                    tables waiting
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 mt-3 border-t border-dashed text-xs" style={{ borderColor: "var(--hairline)", color: "var(--ink-soft)" }}>
+                {occupiedCount} of {floorTables.length} tables currently seated
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : (
+          /* Operational Service Stat Cards for Captains & Waiters */
+          <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div
+              className="p-4 rounded border"
+              style={{ backgroundColor: "var(--paper)", borderColor: "var(--hairline)" }}
+            >
+              <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>Seated Tables</div>
+              <div className="font-heading text-2xl font-bold mt-1" style={{ color: "var(--ink)" }}>
+                {occupiedCount} <span className="text-sm font-normal text-stone-400">/ {floorTables.length}</span>
+              </div>
+              <div className="text-[11px] mt-1 text-stone-500">Active dining tables</div>
+            </div>
+
+            <div
+              className="p-4 rounded border"
+              style={{ backgroundColor: "var(--paper)", borderColor: "var(--hairline)" }}
+            >
+              <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>Pending Approvals</div>
+              <div className={`font-heading text-2xl font-bold mt-1 ${pendingApprovals.length > 0 ? "text-amber-600 animate-pulse" : "text-stone-700"}`}>
+                {pendingApprovals.length}
+              </div>
+              <div className="text-[11px] mt-1 text-stone-500">Awaiting verification</div>
+            </div>
+
+            <div
+              className="p-4 rounded border"
+              style={{ backgroundColor: "var(--paper)", borderColor: "var(--hairline)" }}
+            >
+              <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>Cooking in Kitchen</div>
+              <div className="font-heading text-2xl font-bold mt-1 text-sky-700">
+                {kitchenTickets.filter((t) => t.status !== "SERVED").length}
+              </div>
+              <div className="text-[11px] mt-1 text-stone-500">Active kitchen KOTs</div>
+            </div>
+
+            <div
+              className="p-4 rounded border"
+              style={{ backgroundColor: "var(--paper)", borderColor: "var(--hairline)" }}
+            >
+              <div className="text-xs font-medium" style={{ color: "var(--ink-soft)" }}>Table Buzzers</div>
+              <div className={`font-heading text-2xl font-bold mt-1 ${waiterCalls.length > 0 ? "text-red-600 animate-bounce" : "text-emerald-600"}`}>
+                {waiterCalls.length}
+              </div>
+              <div className="text-[11px] mt-1 text-stone-500">Guest requests</div>
+            </div>
+          </section>
+        )}
 
         {/* Floor Tables Grid Section */}
         <section className="space-y-3">

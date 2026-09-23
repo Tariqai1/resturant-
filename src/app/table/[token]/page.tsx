@@ -209,7 +209,7 @@ export default function CustomerTableOrderingPage({
     smartUpsell: true,
     feedbackReview: true,
     loyaltyOffers: true,
-    waiterOrderApproval: false,
+    waiterOrderApproval: true,
   });
 
   const [isApprovalPending, setIsApprovalPending] = useState<boolean>(false);
