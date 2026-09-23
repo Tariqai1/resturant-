@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/client";
 import ShareMenuModal from "@/components/ShareMenuModal";
 import AdminNavigation from "@/components/AdminNavigation";
 import type { RestaurantFeatures } from "@/lib/platform/state";
+import type { SmartUpsellConfig, UpsellStrategy } from "@/lib/types/offers";
+import { DEFAULT_UPSELL_CONFIG } from "@/lib/types/offers";
 
 type DashboardTable = {
   id: string;
@@ -123,6 +125,10 @@ export default function Home() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [theme, setTheme] = useState<"amber" | "crimson">("amber");
   const [features, setFeatures] = useState<RestaurantFeatures | null>(null);
+  const [upsellConfig, setUpsellConfig] = useState<SmartUpsellConfig>(DEFAULT_UPSELL_CONFIG);
+  const [isUpsellModalOpen, setIsUpsellModalOpen] = useState(false);
+  const [isSavingUpsell, setIsSavingUpsell] = useState(false);
+  const [upsellSaveMsg, setUpsellSaveMsg] = useState("");
 
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     todayRevenue: 0,
@@ -270,6 +276,7 @@ export default function Home() {
         if (data.metrics) setMetrics(data.metrics);
         if (data.theme) setTheme(data.theme);
         if (data.features) setFeatures(data.features);
+        if (data.upsellConfig) setUpsellConfig(data.upsellConfig);
         if (data.bestsellers) setBestsellers(data.bestsellers);
         if (data.kitchenTickets) setKitchenTickets(data.kitchenTickets);
         if (data.waiterCalls) {
@@ -300,6 +307,7 @@ export default function Home() {
         if (data.metrics) setMetrics(data.metrics);
         if (data.theme) setTheme(data.theme);
         if (data.features) setFeatures(data.features);
+        if (data.upsellConfig) setUpsellConfig(data.upsellConfig);
         if (data.bestsellers) {
           setBestsellers(data.bestsellers);
           if (data.bestsellers.length > 0) {
@@ -684,6 +692,23 @@ export default function Home() {
             >
               <span>📤</span>
               <span className="hidden sm:inline">Share Menu</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsUpsellModalOpen(true)}
+              className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+              style={{
+                backgroundColor: upsellConfig.enabled ? "#FFF8E1" : "#F5F5F5",
+                color: upsellConfig.enabled ? "#B78103" : "#757575",
+                borderColor: upsellConfig.enabled ? "#FFE082" : "#E0E0E0",
+                borderRadius: "5px",
+              }}
+              title="Configure Smart Upsell & Basket Pairing"
+            >
+              <span>💡</span>
+              <span className="hidden sm:inline">Smart Upsell</span>
+              {upsellConfig.ownerCanManageUpsell === false && <span className="text-[10px]">🔒</span>}
             </button>
 
             <button
@@ -1745,6 +1770,276 @@ export default function Home() {
                 );
               })()}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE MENU MODAL */}
+      <ShareMenuModal
+        isOpen={isShareMenuOpen}
+        onClose={() => setIsShareMenuOpen(false)}
+        restaurantName={activeRestaurantName}
+        tables={(liveTables || []).map((t) => ({ id: t.id, table_number: t.table_number, qr_token: t.qr_token || "" }))}
+      />
+
+      {/* OWNER SMART UPSELL & BASKET PAIRING CONFIG MODAL */}
+      {isUpsellModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"
+          style={{ backgroundColor: "rgba(34, 29, 22, 0.6)" }}
+          onClick={() => setIsUpsellModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border shadow-2xl p-6 overflow-y-auto max-h-[90vh] space-y-4 animate-scale-up"
+            style={{
+              backgroundColor: "var(--paper)",
+              borderColor: "var(--hairline)",
+              color: "var(--ink)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--hairline)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-700 flex items-center justify-center text-lg border border-amber-500/30">
+                  💡
+                </div>
+                <div>
+                  <h3 className="font-heading text-lg font-bold">Smart Upsell &amp; Basket Pairing</h3>
+                  <p className="text-xs text-stone-500">Configure context-aware dish recommendations for diner cart</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUpsellModalOpen(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold hover:bg-black/5 cursor-pointer text-stone-400"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* SUPER ADMIN LOCK BANNER (If Delegation is Disabled) */}
+            {upsellConfig.ownerCanManageUpsell === false ? (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <span>🔒</span>
+                  <span>Centrally Managed by Platform Super Admin</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  Smart upsell configuration is centrally enforced for your outlet. Below are your currently active rules in read-only mode. Contact your Super Admin if you need customized pairing parameters.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
+                <span>✓</span>
+                <span>Super Admin has delegated full upsell management to your restaurant desk.</span>
+              </div>
+            )}
+
+            {/* Master Switch */}
+            <div
+              className="p-3.5 rounded-xl border flex items-center justify-between"
+              style={{ backgroundColor: "var(--paper-dim)", borderColor: "var(--hairline)" }}
+            >
+              <div>
+                <div className="text-xs font-bold">Enable Smart Upsell &amp; Pairings</div>
+                <div className="text-[11px] text-stone-500">
+                  Show recommended pairings in diner mobile cart drawer
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  disabled={upsellConfig.ownerCanManageUpsell === false}
+                  checked={upsellConfig.enabled}
+                  onChange={(e) =>
+                    setUpsellConfig({
+                      ...upsellConfig,
+                      enabled: e.target.checked,
+                    })
+                  }
+                  className="sr-only peer disabled:opacity-50"
+                />
+                <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--rust)]" />
+              </label>
+            </div>
+
+            {/* Strategy Selector */}
+            <div>
+              <label className="text-xs font-bold block mb-1.5">Pairing Strategy</label>
+              <select
+                disabled={upsellConfig.ownerCanManageUpsell === false}
+                value={upsellConfig.strategy}
+                onChange={(e) =>
+                  setUpsellConfig({
+                    ...upsellConfig,
+                    strategy: e.target.value as UpsellStrategy,
+                  })
+                }
+                className="w-full px-3 py-2 rounded-lg border text-xs bg-white focus:outline-none disabled:bg-stone-100"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <option value="smart_ai">⚡ Smart AI Pairing (Curry → Breads/Rice, Starters → Drinks, Meals → Desserts)</option>
+                <option value="bestsellers">🔥 Top Bestsellers (Highest demand items across menu)</option>
+                <option value="high_margin">💰 High Margin Boosters (Beverages &amp; Appetizers)</option>
+                <option value="budget_addons">🪙 Budget Add-ons (Dishes under ₹120 for instant additions)</option>
+              </select>
+            </div>
+
+            {/* Cart Drawer Headline */}
+            <div>
+              <label className="text-xs font-bold block mb-1">Cart Drawer Section Title</label>
+              <input
+                type="text"
+                disabled={upsellConfig.ownerCanManageUpsell === false}
+                value={upsellConfig.headline}
+                onChange={(e) =>
+                  setUpsellConfig({
+                    ...upsellConfig,
+                    headline: e.target.value,
+                  })
+                }
+                placeholder="Frequently Ordered Together"
+                className="w-full px-3 py-2 rounded-lg border text-xs bg-white focus:outline-none disabled:bg-stone-100"
+                style={{ borderColor: "var(--hairline)" }}
+              />
+            </div>
+
+            {/* Max Items */}
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-xs font-bold block">Maximum Recommendations in Drawer</label>
+                <span className="text-[11px] text-stone-500">Number of suggestions diner sees simultaneously</span>
+              </div>
+              <select
+                disabled={upsellConfig.ownerCanManageUpsell === false}
+                value={upsellConfig.maxItems}
+                onChange={(e) =>
+                  setUpsellConfig({
+                    ...upsellConfig,
+                    maxItems: Number(e.target.value) || 3,
+                  })
+                }
+                className="px-3 py-1.5 rounded-lg border text-xs bg-white focus:outline-none disabled:bg-stone-100"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <option value={2}>2 Items</option>
+                <option value={3}>3 Items (Recommended)</option>
+                <option value={4}>4 Items</option>
+                <option value={5}>5 Items</option>
+                <option value={6}>6 Items</option>
+              </select>
+            </div>
+
+            {/* Behavioral Pairing Flags */}
+            <div className="space-y-2 pt-2 border-t" style={{ borderColor: "var(--hairline)" }}>
+              <label className="flex items-center justify-between p-2.5 rounded-lg border bg-white cursor-pointer" style={{ borderColor: "var(--hairline)" }}>
+                <div>
+                  <div className="text-xs font-bold">Push Beverages with Starters &amp; Spicy Food</div>
+                  <div className="text-[10px] text-stone-500">Intelligently pairs coolers, lassi, and mocktails with appetizers</div>
+                </div>
+                <input
+                  type="checkbox"
+                  disabled={upsellConfig.ownerCanManageUpsell === false}
+                  checked={upsellConfig.pushBeveragesWithStarters}
+                  onChange={(e) =>
+                    setUpsellConfig({
+                      ...upsellConfig,
+                      pushBeveragesWithStarters: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded accent-[var(--rust)] cursor-pointer disabled:opacity-50"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 rounded-lg border bg-white cursor-pointer" style={{ borderColor: "var(--hairline)" }}>
+                <div>
+                  <div className="text-xs font-bold">Push Desserts Near Checkout</div>
+                  <div className="text-[10px] text-stone-500">Offers sweets and ice cream when main course items are selected</div>
+                </div>
+                <input
+                  type="checkbox"
+                  disabled={upsellConfig.ownerCanManageUpsell === false}
+                  checked={upsellConfig.pushDessertsNearCheckout}
+                  onChange={(e) =>
+                    setUpsellConfig({
+                      ...upsellConfig,
+                      pushDessertsNearCheckout: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded accent-[var(--rust)] cursor-pointer disabled:opacity-50"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-2.5 rounded-lg border bg-white cursor-pointer" style={{ borderColor: "var(--hairline)" }}>
+                <div>
+                  <div className="text-xs font-bold">Spend Goal Progress Nudge</div>
+                  <div className="text-[10px] text-stone-500">Shows interactive progress bar towards unlocking discount vouchers</div>
+                </div>
+                <input
+                  type="checkbox"
+                  disabled={upsellConfig.ownerCanManageUpsell === false}
+                  checked={upsellConfig.showSpendGoalNudge}
+                  onChange={(e) =>
+                    setUpsellConfig({
+                      ...upsellConfig,
+                      showSpendGoalNudge: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 rounded accent-[var(--rust)] cursor-pointer disabled:opacity-50"
+                />
+              </label>
+            </div>
+
+            {/* Save Feedback and Action Buttons */}
+            {upsellSaveMsg && (
+              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold text-center">
+                ✓ {upsellSaveMsg}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t" style={{ borderColor: "var(--hairline)" }}>
+              <button
+                type="button"
+                onClick={() => setIsUpsellModalOpen(false)}
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100 cursor-pointer"
+              >
+                Close
+              </button>
+
+              {upsellConfig.ownerCanManageUpsell !== false && (
+                <button
+                  type="button"
+                  disabled={isSavingUpsell}
+                  onClick={async () => {
+                    setIsSavingUpsell(true);
+                    setUpsellSaveMsg("");
+                    try {
+                      const res = await fetch("/api/restaurant/upsell", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(upsellConfig),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.message || "Failed to update upsell settings");
+                      setUpsellSaveMsg("Smart upsell settings saved successfully!");
+                      setTimeout(() => {
+                        setIsUpsellModalOpen(false);
+                        setUpsellSaveMsg("");
+                      }, 1000);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Failed to update settings");
+                    } finally {
+                      setIsSavingUpsell(false);
+                    }
+                  }}
+                  className="px-5 py-2 rounded-lg text-xs font-bold cursor-pointer text-white shadow-sm transition-transform active:scale-95 disabled:opacity-50"
+                  style={{ backgroundColor: "var(--rust)" }}
+                >
+                  {isSavingUpsell ? "Saving Changes..." : "Save Settings"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -99,6 +99,9 @@ import {
   RestaurantThemeType,
   RestaurantBrandingConfig,
   DEFAULT_BRANDING_CONFIG,
+  SmartUpsellConfig,
+  DEFAULT_UPSELL_CONFIG,
+  UpsellStrategy,
 } from "@/lib/types/offers";
 export {
   type RestaurantOfferConfig,
@@ -106,6 +109,9 @@ export {
   type RestaurantThemeType,
   type RestaurantBrandingConfig,
   DEFAULT_BRANDING_CONFIG,
+  type SmartUpsellConfig,
+  DEFAULT_UPSELL_CONFIG,
+  type UpsellStrategy,
 };
 
 export type OrderPrepEstimate = {
@@ -131,6 +137,7 @@ export type PlatformState = {
   restaurantBrandings?: Record<string, RestaurantBrandingConfig>;
   restaurantFeatures?: Record<string, RestaurantFeatures>;
   restaurantOffers?: Record<string, RestaurantOfferConfig>;
+  restaurantUpsellConfigs?: Record<string, SmartUpsellConfig>;
   orderPrepEstimates?: Record<string, OrderPrepEstimate>;
   restaurantPhones?: Record<string, string>;
   dishSpecialTags?: Record<string, string>;
@@ -478,6 +485,34 @@ export function setRestaurantOfferConfig(
   const current = state.restaurantOffers[restaurantId] || { ...DEFAULT_OFFER_CONFIG };
   const updated: RestaurantOfferConfig = { ...current, ...config };
   state.restaurantOffers[restaurantId] = updated;
+  savePlatformState(state);
+  return updated;
+}
+
+export function getRestaurantUpsellConfig(restaurantId?: string): SmartUpsellConfig {
+  if (!restaurantId) return { ...DEFAULT_UPSELL_CONFIG };
+  const state = getPlatformState();
+  if (state.restaurantUpsellConfigs && state.restaurantUpsellConfigs[restaurantId]) {
+    return { ...DEFAULT_UPSELL_CONFIG, ...state.restaurantUpsellConfigs[restaurantId] };
+  }
+  return { ...DEFAULT_UPSELL_CONFIG };
+}
+
+export function setRestaurantUpsellConfig(
+  restaurantId: string,
+  config: Partial<SmartUpsellConfig>
+): SmartUpsellConfig {
+  const state = getPlatformState();
+  if (!state.restaurantUpsellConfigs) {
+    state.restaurantUpsellConfigs = {};
+  }
+  const current = state.restaurantUpsellConfigs[restaurantId] || { ...DEFAULT_UPSELL_CONFIG };
+  const updated: SmartUpsellConfig = { ...current, ...config };
+  state.restaurantUpsellConfigs[restaurantId] = updated;
+  // Also sync the features.smartUpsell boolean flag
+  if (config.enabled !== undefined) {
+    setRestaurantFeatures(restaurantId, { smartUpsell: config.enabled });
+  }
   savePlatformState(state);
   return updated;
 }

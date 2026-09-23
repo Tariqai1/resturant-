@@ -10,8 +10,10 @@ import type {
   RestaurantThemeType,
   RestaurantBrandingConfig,
   RestaurantOfferConfig,
+  SmartUpsellConfig,
+  UpsellStrategy,
 } from "@/lib/types/offers";
-import { DEFAULT_OFFER_CONFIG, DEFAULT_BRANDING_CONFIG } from "@/lib/types/offers";
+import { DEFAULT_OFFER_CONFIG, DEFAULT_BRANDING_CONFIG, DEFAULT_UPSELL_CONFIG } from "@/lib/types/offers";
 
 const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   callWaiter: true,
@@ -52,6 +54,7 @@ type RestaurantFleetItem = {
   branding?: RestaurantBrandingConfig;
   features?: RestaurantFeatures;
   offerConfig?: RestaurantOfferConfig;
+  upsellConfig?: SmartUpsellConfig;
   tables?: ShareMenuTable[];
   firstTableToken?: string | null;
   createdAt: string;
@@ -93,8 +96,8 @@ export default function SuperAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Tab navigation: Fleet Registry, Themes & Branding, Offers & Campaigns, Global Broadcast, Activity Log
-  const [activeTab, setActiveTab] = useState<"fleet" | "theme" | "offers" | "broadcast" | "activity">("fleet");
+  // Tab navigation: Fleet Registry, Themes & Branding, Offers & Campaigns, Smart Upsell, Global Broadcast, Activity Log
+  const [activeTab, setActiveTab] = useState<"fleet" | "theme" | "offers" | "upsell" | "broadcast" | "activity">("fleet");
 
   // Dedicated Themes & Branding Studio state
   const [selectedThemeRestoId, setSelectedThemeRestoId] = useState<string>("all");
@@ -106,11 +109,17 @@ export default function SuperAdminPage() {
   const [themeSimView, setThemeSimView] = useState<"welcome" | "menu">("welcome");
   const [isSavingThemeStudio, setIsSavingThemeStudio] = useState<boolean>(false);
 
-  // Dedicated Offers & Campaigns Engine state
+  // Dedicated Offers & Campaigns Studio state
   const [campaignTargetMode, setCampaignTargetMode] = useState<"all" | "selected">("all");
   const [campaignSelectedRestoIds, setCampaignSelectedRestoIds] = useState<string[]>([]);
+  const [selectedOfferRestoId, setSelectedOfferRestoId] = useState<string>("all");
   const [campaignOfferConfig, setCampaignOfferConfig] = useState<RestaurantOfferConfig>(DEFAULT_OFFER_CONFIG);
   const [isSavingCampaign, setIsSavingCampaign] = useState<boolean>(false);
+
+  // Dedicated Smart Upsell Studio state
+  const [selectedUpsellRestoId, setSelectedUpsellRestoId] = useState<string>("all");
+  const [campaignUpsellConfig, setCampaignUpsellConfig] = useState<SmartUpsellConfig>(DEFAULT_UPSELL_CONFIG);
+  const [isSavingUpsellCampaign, setIsSavingUpsellCampaign] = useState<boolean>(false);
 
   // Synchronize Theme Studio with selected outlet
   useEffect(() => {
@@ -125,6 +134,16 @@ export default function SuperAdminPage() {
       }
     }
   }, [selectedThemeRestoId, restaurants]);
+
+  // Synchronize Smart Upsell Studio with selected outlet
+  useEffect(() => {
+    if (selectedUpsellRestoId !== "all") {
+      const found = restaurants.find((r) => r.id === selectedUpsellRestoId);
+      if (found && found.upsellConfig) {
+        setCampaignUpsellConfig(found.upsellConfig);
+      }
+    }
+  }, [selectedUpsellRestoId, restaurants]);
 
   // Broadcast state
   const [broadcastForm, setBroadcastForm] = useState<BroadcastState>({
@@ -499,6 +518,7 @@ export default function SuperAdminPage() {
           theme: cockpitResto.theme,
           branding: cockpitResto.branding,
           offerConfig: cockpitResto.offerConfig,
+          upsellConfig: cockpitResto.upsellConfig,
           subscription_plan: cockpitResto.subscriptionPlan,
           subscription_status: cockpitResto.subscriptionStatus,
         }),
@@ -634,6 +654,54 @@ export default function SuperAdminPage() {
         showToast("Network error launching campaign");
       } finally {
         setIsSavingCampaign(false);
+      }
+    });
+  };
+
+  // Deploy Smart Upsell Campaign
+  const handleSaveUpsellCampaign = (applyToAll: boolean = false) => {
+    let targetIds: string[] = [];
+    if (applyToAll || selectedUpsellRestoId === "all") {
+      targetIds = restaurants.map((r) => r.id);
+    } else {
+      targetIds = [selectedUpsellRestoId];
+    }
+
+    if (targetIds.length === 0) {
+      showToast("No restaurant selected for upsell deployment");
+      return;
+    }
+
+    setIsSavingUpsellCampaign(true);
+    startTransition(async () => {
+      try {
+        const payload = {
+          ids: targetIds,
+          upsellConfig: campaignUpsellConfig,
+          features: {
+            smartUpsell: campaignUpsellConfig.enabled,
+          },
+        };
+        const res = await fetch("/api/super-admin/restaurants", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(
+            `Smart Upsell deployed successfully across ${targetIds.length} ${
+              targetIds.length === 1 ? "restaurant" : "restaurants"
+            }!`
+          );
+          fetchData();
+        } else {
+          showToast(`Error: ${data.message}`);
+        }
+      } catch {
+        showToast("Network error deploying upsell rules");
+      } finally {
+        setIsSavingUpsellCampaign(false);
       }
     });
   };
@@ -1167,6 +1235,24 @@ export default function SuperAdminPage() {
                     Active
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("upsell")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "upsell"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-wand-magic-sparkles text-xs" />
+                    <span>Smart Upsell AI</span>
+                  </div>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-800/50">
+                    Pairing
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1403,6 +1489,48 @@ export default function SuperAdminPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    setActiveTab("theme");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "theme" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Themes &amp; Branding</span>
+                  <span className="text-[9px] font-mono">5 Styles</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("offers");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "offers" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Offers &amp; Campaigns</span>
+                  <span className="text-[9px] font-mono">Campaigns</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("upsell");
+                    setMobileDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-bold ${
+                    activeTab === "upsell" ? "bg-[#D96B27] text-white" : "text-stone-300 hover:bg-stone-900"
+                  }`}
+                >
+                  <span>Smart Upsell AI</span>
+                  <span className="text-[9px] font-mono">Pairing</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setActiveTab("broadcast");
                     setMobileDrawerOpen(false);
                   }}
@@ -1585,6 +1713,21 @@ export default function SuperAdminPage() {
             <span>Offers &amp; Campaigns</span>
             <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
               Builder
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("upsell")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "upsell"
+                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
+            }`}
+          >
+            <i className="fa-solid fa-wand-magic-sparkles" />
+            <span>Smart Upsell AI</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-800/50">
+              Pairing
             </span>
           </button>
 
@@ -1804,6 +1947,12 @@ export default function SuperAdminPage() {
                                 label: "Offers",
                                 icon: "🎁",
                                 active: Boolean(r.features?.loyaltyOffers ?? true),
+                              },
+                              {
+                                key: "smartUpsell" as const,
+                                label: "Upsell",
+                                icon: "💡",
+                                active: Boolean(r.features?.smartUpsell ?? r.upsellConfig?.enabled ?? true),
                               },
                               {
                                 key: "tablePayUpi" as const,
@@ -3030,6 +3179,525 @@ export default function SuperAdminPage() {
                 <div className="p-2.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-200 text-xs text-center font-bold flex items-center justify-center gap-2">
                   <span>⚡</span>
                   <span className="truncate">{campaignOfferConfig.bannerText || "FLAT 20% OFF TODAY"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SMART UPSELL & BASKET PAIRING STUDIO */}
+      {activeTab === "upsell" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Header & Presets Toolbar */}
+          <div className="bg-[#181410] border border-[#26201A] rounded-xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-amber-950/60 border border-amber-800/60 text-amber-300 flex items-center justify-center text-sm">
+                  <i className="fa-solid fa-wand-magic-sparkles" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base tracking-tight">Smart Upsell &amp; Basket Pairing Studio</h3>
+                  <p className="text-xs text-[#8C8275]">
+                    Super Admin fleet controls for intelligent context-aware cross-selling, pairings, and owner delegation.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Fast Presets */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono text-[#8C8275] uppercase">Fast Presets:</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignUpsellConfig({
+                    enabled: true,
+                    headline: "Frequently Ordered Together",
+                    strategy: "smart_ai",
+                    maxItems: 3,
+                    pushBeveragesWithStarters: true,
+                    pushDessertsNearCheckout: true,
+                    showSpendGoalNudge: true,
+                    ownerCanManageUpsell: true,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-amber-300 border border-amber-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                ⚡ Smart AI Pairing
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignUpsellConfig({
+                    enabled: true,
+                    headline: "Top Rated Bestsellers",
+                    strategy: "bestsellers",
+                    maxItems: 3,
+                    pushBeveragesWithStarters: true,
+                    pushDessertsNearCheckout: true,
+                    showSpendGoalNudge: true,
+                    ownerCanManageUpsell: true,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-orange-300 border border-orange-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                🔥 Top Bestsellers
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignUpsellConfig({
+                    enabled: true,
+                    headline: "Popular Companion Dishes",
+                    strategy: "high_margin",
+                    maxItems: 4,
+                    pushBeveragesWithStarters: true,
+                    pushDessertsNearCheckout: true,
+                    showSpendGoalNudge: true,
+                    ownerCanManageUpsell: true,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-emerald-300 border border-emerald-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                💰 High Margin Boost
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignUpsellConfig({
+                    enabled: true,
+                    headline: "Quick Sides & Add-ons",
+                    strategy: "budget_addons",
+                    maxItems: 3,
+                    pushBeveragesWithStarters: true,
+                    pushDessertsNearCheckout: true,
+                    showSpendGoalNudge: true,
+                    ownerCanManageUpsell: true,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-blue-300 border border-blue-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                🪙 Budget Add-ons
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Configuration Controls */}
+            <div className="lg:col-span-7 bg-[#181410] border border-[#26201A] rounded-xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center justify-between border-b border-[#26201B] pb-3">
+                <span className="font-bold text-white text-sm">Deployment &amp; Rule Engine</span>
+                <span className="text-[10px] font-mono text-[#D96B27]">Live Sync</span>
+              </div>
+
+              {/* Target Outlet Selector */}
+              <div>
+                <label className="text-[11px] font-bold text-stone-300 block mb-1.5">
+                  Target Restaurant Outlet
+                </label>
+                <select
+                  value={selectedUpsellRestoId}
+                  onChange={(e) => setSelectedUpsellRestoId(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#120F0C] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                >
+                  <option value="all">⚡ All Restaurants (Fleet-wide Deployment)</option>
+                  {restaurants.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} · {r.ownerName} ({r.upsellConfig?.enabled === false ? "Disabled" : "Active"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Master Upsell Enable Switch */}
+              <div className="p-3.5 bg-[#120F0C] border border-[#2D251F] rounded-xl flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${campaignUpsellConfig.enabled ? "bg-emerald-400" : "bg-red-400"}`} />
+                    <span>Smart Upsell &amp; Basket Pairing Master Switch</span>
+                  </div>
+                  <div className="text-[11px] text-[#8C8275] mt-0.5">
+                    Controls whether intelligent recommendations appear in diner checkout drawer
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={campaignUpsellConfig.enabled}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        enabled: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-stone-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#D96B27]" />
+                </label>
+              </div>
+
+              {/* Strategy Selector */}
+              <div>
+                <label className="text-[11px] font-bold text-stone-300 block mb-1.5">
+                  Upsell Algorithm Strategy
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    {
+                      id: "smart_ai" as const,
+                      title: "Smart AI Pairing",
+                      desc: "Curry → Naan/Rice, Starters → Drinks, Meals → Desserts",
+                      icon: "⚡",
+                    },
+                    {
+                      id: "bestsellers" as const,
+                      title: "Top Bestsellers",
+                      desc: "Prioritize top-selling dishes across categories",
+                      icon: "🔥",
+                    },
+                    {
+                      id: "high_margin" as const,
+                      title: "High Margin Boost",
+                      desc: "Push beverages, appetizers, and profitable sides",
+                      icon: "💰",
+                    },
+                    {
+                      id: "budget_addons" as const,
+                      title: "Budget Add-ons",
+                      desc: "Promote items under ₹120 for zero-hesitation additions",
+                      icon: "🪙",
+                    },
+                  ].map((strat) => {
+                    const isSelected = campaignUpsellConfig.strategy === strat.id;
+                    return (
+                      <button
+                        key={strat.id}
+                        type="button"
+                        onClick={() =>
+                          setCampaignUpsellConfig({
+                            ...campaignUpsellConfig,
+                            strategy: strat.id,
+                          })
+                        }
+                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-amber-950/30 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#120F0C] border-[#2D251F] text-stone-400 hover:border-stone-600 hover:text-stone-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold text-xs">
+                          <span>{strat.icon}</span>
+                          <span className={isSelected ? "text-amber-300" : "text-stone-200"}>{strat.title}</span>
+                        </div>
+                        <p className="text-[10px] mt-1 leading-snug text-[#8C8275]">{strat.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cart Drawer Headline & Max Items */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-[11px] font-bold text-stone-300 block mb-1">
+                    Cart Drawer Upsell Headline
+                  </label>
+                  <input
+                    type="text"
+                    value={campaignUpsellConfig.headline}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        headline: e.target.value,
+                      })
+                    }
+                    placeholder="Frequently Ordered Together"
+                    className="w-full px-3 py-2 bg-[#120F0C] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-stone-300 block mb-1">
+                    Max Recommendations
+                  </label>
+                  <select
+                    value={campaignUpsellConfig.maxItems}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        maxItems: Number(e.target.value) || 3,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-[#120F0C] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                  >
+                    <option value={2}>2 Dishes</option>
+                    <option value={3}>3 Dishes (Optimal)</option>
+                    <option value={4}>4 Dishes</option>
+                    <option value={5}>5 Dishes</option>
+                    <option value={6}>6 Dishes</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Behavioral Pairing Flags */}
+              <div className="space-y-2 pt-1 border-t border-[#26201B]">
+                <label className="flex items-center justify-between p-2.5 rounded-lg bg-[#120F0C] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                  <div>
+                    <div className="text-xs font-bold text-white">Push Beverages with Starters &amp; Spicy Dishes</div>
+                    <div className="text-[10px] text-[#8C8275]">Auto-detects spicy dishes and suggests cooling drinks, mojitos, and lassi</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={campaignUpsellConfig.pushBeveragesWithStarters}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        pushBeveragesWithStarters: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 rounded-lg bg-[#120F0C] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                  <div>
+                    <div className="text-xs font-bold text-white">Push Desserts Near Checkout</div>
+                    <div className="text-[10px] text-[#8C8275]">Offers sweet finish options like Gulab Jamun and Ice Cream when diner is finalizing meal</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={campaignUpsellConfig.pushDessertsNearCheckout}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        pushDessertsNearCheckout: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-2.5 rounded-lg bg-[#120F0C] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                  <div>
+                    <div className="text-xs font-bold text-white">Spend Goal Progress Nudge</div>
+                    <div className="text-[10px] text-[#8C8275]">Displays dynamic progress bar towards unlocking flat order discounts</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={campaignUpsellConfig.showSpendGoalNudge}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        showSpendGoalNudge: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              {/* SUPER ADMIN DELEGATION CONTROL SWITCH */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/30 via-orange-950/20 to-amber-950/30 border border-amber-800/60 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <i className="fa-solid fa-user-gear text-amber-400" />
+                    <span>Delegate Upsell Control to Restaurant Owner</span>
+                  </div>
+                  <div className="text-[10px] text-amber-200/70 mt-0.5">
+                    {campaignUpsellConfig.ownerCanManageUpsell
+                      ? "✓ Owner and manager can adjust these upsell rules and toggles directly from their dashboard."
+                      : "🔒 Locked: Super Admin centrally enforces upsell rules. Owner dashboard cannot modify these settings."}
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-3">
+                  <input
+                    type="checkbox"
+                    checked={campaignUpsellConfig.ownerCanManageUpsell}
+                    onChange={(e) =>
+                      setCampaignUpsellConfig({
+                        ...campaignUpsellConfig,
+                        ownerCanManageUpsell: e.target.checked,
+                      })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-stone-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500" />
+                </label>
+              </div>
+
+              {/* Deployment Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => handleSaveUpsellCampaign(false)}
+                  disabled={isSavingUpsellCampaign}
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-[#D96B27] hover:bg-[#C25B1D] text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-lg shadow-[#D96B27]/25 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-cloud-arrow-up" />
+                  <span>
+                    {isSavingUpsellCampaign
+                      ? "Deploying Rules..."
+                      : selectedUpsellRestoId === "all"
+                      ? "Deploy to All Outlets (Fleet-wide)"
+                      : "Deploy to Selected Restaurant"}
+                  </span>
+                </button>
+
+                {selectedUpsellRestoId !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveUpsellCampaign(true)}
+                    disabled={isSavingUpsellCampaign}
+                    className="w-full sm:w-auto py-2.5 px-4 bg-[#241E18] hover:bg-[#302820] text-stone-200 border border-[#3A3228] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Force Fleet-wide Deploy</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Live Mockup Simulator & Fleet Status Matrix */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Simulator Preview Card */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-4 shadow-xl space-y-3">
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-[#26201B]">
+                  <span className="text-white font-bold text-xs flex items-center gap-1.5">
+                    <i className="fa-solid fa-mobile-screen text-[#D96B27]" />
+                    <span>Diner Cart Review Simulator</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400">Live Preview</span>
+                </div>
+
+                {/* Simulated Cart Review Drawer Component */}
+                <div className="p-3.5 rounded-2xl bg-[#FFFDF9] border border-amber-900/20 text-stone-900 space-y-3 shadow-inner">
+                  {/* Spend Goal Proximity Preview */}
+                  {campaignUpsellConfig.showSpendGoalNudge && (
+                    <div className="p-2.5 rounded-xl border bg-amber-50/80 border-amber-300">
+                      <div className="flex items-center justify-between text-[11px] mb-1 font-bold text-amber-900">
+                        <span>🎯 Add ₹79 more to unlock 20% OFF</span>
+                        <span className="text-[10px] font-mono">₹320/₹399</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-amber-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full w-[80%]" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Smart Upsell Carousel Preview */}
+                  {campaignUpsellConfig.enabled ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-stone-800">
+                          {campaignUpsellConfig.headline || "Frequently Ordered Together"}
+                        </span>
+                        <span className="text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                          {campaignUpsellConfig.strategy}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        <div className="p-2 rounded-xl bg-white border border-stone-200 flex flex-col justify-between w-28 shrink-0 shadow-2xs">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                              <span className="text-[8px] font-bold px-1 rounded bg-stone-100 text-stone-700">🫓 Curry Pair</span>
+                            </div>
+                            <div className="text-[10px] font-bold text-stone-900 truncate">Butter Naan</div>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 mt-1 border-t border-dashed border-stone-200">
+                            <span className="text-[10px] font-bold text-stone-700">₹60</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#D96B27] text-white">+ Add</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-white border border-stone-200 flex flex-col justify-between w-28 shrink-0 shadow-2xs">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                              <span className="text-[8px] font-bold px-1 rounded bg-stone-100 text-stone-700">🥤 Drink Pair</span>
+                            </div>
+                            <div className="text-[10px] font-bold text-stone-900 truncate">Fresh Lime Soda</div>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 mt-1 border-t border-dashed border-stone-200">
+                            <span className="text-[10px] font-bold text-stone-700">₹80</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#D96B27] text-white">+ Add</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded-xl bg-white border border-stone-200 flex flex-col justify-between w-28 shrink-0 shadow-2xs">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                              <span className="text-[8px] font-bold px-1 rounded bg-stone-100 text-stone-700">🍨 Sweet</span>
+                            </div>
+                            <div className="text-[10px] font-bold text-stone-900 truncate">Gulab Jamun</div>
+                          </div>
+                          <div className="flex items-center justify-between pt-1 mt-1 border-t border-dashed border-stone-200">
+                            <span className="text-[10px] font-bold text-stone-700">₹70</span>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#D96B27] text-white">+ Add</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-stone-100 text-center text-xs text-stone-500 font-medium">
+                      Smart Upsell is currently disabled
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Fleet Outlets Deployment Matrix */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-4 shadow-xl space-y-3">
+                <div className="flex items-center justify-between text-xs pb-1 border-b border-[#26201B]">
+                  <span className="text-white font-bold text-xs flex items-center gap-1.5">
+                    <i className="fa-solid fa-network-wired text-amber-400" />
+                    <span>Fleet Outlets Status</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-stone-400">{restaurants.length} Registered</span>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {restaurants.map((r) => {
+                    const cfg = r.upsellConfig || DEFAULT_UPSELL_CONFIG;
+                    const isUpsellOn = r.features?.smartUpsell !== false && cfg.enabled !== false;
+                    return (
+                      <div
+                        key={r.id}
+                        className="p-2.5 rounded-lg bg-[#120F0C] border border-[#2D251F] flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white truncate">{r.name}</div>
+                          <div className="flex items-center gap-2 text-[10px] text-[#8C8275] font-mono">
+                            <span className="capitalize">{cfg.strategy || "smart_ai"}</span>
+                            <span>•</span>
+                            <span className={cfg.ownerCanManageUpsell ? "text-emerald-400" : "text-amber-400"}>
+                              {cfg.ownerCanManageUpsell ? "Owner Config: Allowed" : "Owner Config: Locked"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedUpsellRestoId(r.id);
+                            if (r.upsellConfig) setCampaignUpsellConfig(r.upsellConfig);
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-mono font-bold shrink-0 cursor-pointer ${
+                            isUpsellOn
+                              ? "bg-emerald-950/40 text-emerald-300 border border-emerald-800/60"
+                              : "bg-red-950/40 text-red-300 border border-red-800/60"
+                          }`}
+                        >
+                          {isUpsellOn ? "ON" : "OFF"}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -5363,6 +6031,219 @@ export default function SuperAdminPage() {
                         }}
                         className="w-full px-3 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 5.1: Smart Upsell & Basket Pairing Studio */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#241E18] pb-1">
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#A89F91] flex items-center gap-1.5">
+                      <span>💡</span>
+                      <span>Smart Upsell &amp; Basket Pairing Configuration</span>
+                    </span>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <span className="text-[10px] font-mono text-stone-400">Master Switch</span>
+                      <input
+                        type="checkbox"
+                        checked={cockpitResto.upsellConfig?.enabled ?? true}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            upsellConfig: {
+                              ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                              enabled: checked,
+                            },
+                            features: {
+                              ...(cockpitResto.features || DEFAULT_RESTAURANT_FEATURES),
+                              smartUpsell: checked,
+                            },
+                          });
+                        }}
+                        className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="p-4 bg-[#14110E] border border-[#2D251F] rounded-xl space-y-3.5">
+                    {/* Strategy and Headline */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-300 block mb-1">
+                          Upsell Pairing Strategy
+                        </label>
+                        <select
+                          value={cockpitResto.upsellConfig?.strategy || "smart_ai"}
+                          onChange={(e) => {
+                            const val = e.target.value as UpsellStrategy;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                strategy: val,
+                              },
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        >
+                          <option value="smart_ai">Smart AI Pairing (Curry → Bread, Starters → Drinks)</option>
+                          <option value="bestsellers">Top Bestsellers Priority</option>
+                          <option value="high_margin">High Margin Boosters (Beverages &amp; Starters)</option>
+                          <option value="budget_addons">Budget Add-ons (Under ₹120 quick adds)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-stone-300 block mb-1">
+                          Cart Drawer Headline
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Frequently Ordered Together"
+                          value={cockpitResto.upsellConfig?.headline || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                headline: val,
+                              },
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Max items limit */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <label className="text-[11px] font-bold text-white block">
+                          Maximum Recommendations in Cart
+                        </label>
+                        <span className="text-[10px] text-stone-400">
+                          Number of smart pairings displayed simultaneously in review drawer
+                        </span>
+                      </div>
+                      <select
+                        value={cockpitResto.upsellConfig?.maxItems ?? 3}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 3;
+                          setCockpitResto({
+                            ...cockpitResto,
+                            upsellConfig: {
+                              ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                              maxItems: val,
+                            },
+                          });
+                        }}
+                        className="px-3 py-1.5 bg-[#1B1612] border border-[#2D251F] rounded-lg text-white text-xs focus:outline-none focus:border-[#D96B27]"
+                      >
+                        <option value={2}>2 Items</option>
+                        <option value={3}>3 Items (Recommended)</option>
+                        <option value={4}>4 Items</option>
+                        <option value={5}>5 Items</option>
+                        <option value={6}>6 Items</option>
+                      </select>
+                    </div>
+
+                    {/* Intelligent Rules Toggles */}
+                    <div className="space-y-2 pt-2 border-t border-[#241E18]">
+                      <label className="flex items-center justify-between p-2 rounded-lg bg-[#1B1612] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                        <div>
+                          <div className="text-[11px] font-bold text-white">Push Beverages with Starters &amp; Spicy Dishes</div>
+                          <div className="text-[10px] text-stone-400">Suggests cold drinks &amp; lassi when diner selects tandoori or spicy items</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={cockpitResto.upsellConfig?.pushBeveragesWithStarters ?? true}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                pushBeveragesWithStarters: checked,
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between p-2 rounded-lg bg-[#1B1612] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                        <div>
+                          <div className="text-[11px] font-bold text-white">Push Desserts Near Checkout</div>
+                          <div className="text-[10px] text-stone-400">Promotes sweets and ice cream when main course dishes are in cart</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={cockpitResto.upsellConfig?.pushDessertsNearCheckout ?? true}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                pushDessertsNearCheckout: checked,
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                        />
+                      </label>
+
+                      <label className="flex items-center justify-between p-2 rounded-lg bg-[#1B1612] border border-[#2D251F] cursor-pointer hover:border-stone-700">
+                        <div>
+                          <div className="text-[11px] font-bold text-white">Spend Goal Progress Nudge</div>
+                          <div className="text-[10px] text-stone-400">Shows interactive progress bar towards unlocking table offer discounts</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={cockpitResto.upsellConfig?.showSpendGoalNudge ?? true}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                showSpendGoalNudge: checked,
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded accent-[#D96B27] cursor-pointer"
+                        />
+                      </label>
+
+                      {/* Super Admin Delegation Toggle */}
+                      <label className="flex items-center justify-between p-2.5 rounded-lg bg-amber-950/20 border border-amber-800/40 cursor-pointer hover:border-amber-700/60">
+                        <div>
+                          <div className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                            <i className="fa-solid fa-user-gear text-amber-400" />
+                            <span>Delegate Control to Restaurant Owner</span>
+                          </div>
+                          <div className="text-[10px] text-amber-200/70">
+                            Allow restaurant owner to toggle and adjust upsell rules directly from their Owner Dashboard
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={cockpitResto.upsellConfig?.ownerCanManageUpsell ?? true}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setCockpitResto({
+                              ...cockpitResto,
+                              upsellConfig: {
+                                ...(cockpitResto.upsellConfig || DEFAULT_UPSELL_CONFIG),
+                                ownerCanManageUpsell: checked,
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                        />
+                      </label>
                     </div>
                   </div>
                 </div>

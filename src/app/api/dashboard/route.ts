@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSuperAdminUser } from "@/lib/auth/super-admin";
-import { getBroadcast, getStaffPermissions, getActiveWaiterCalls, getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime } from "@/lib/platform/state";
+import { getBroadcast, getStaffPermissions, getActiveWaiterCalls, getRestaurantTheme, getRestaurantFeatures, getOrderPrepTime, getRestaurantUpsellConfig } from "@/lib/platform/state";
 
 export async function GET() {
   const supabase = await createClient();
@@ -140,6 +140,7 @@ export async function GET() {
       waiterCalls: getActiveWaiterCalls(targetRestoId),
       theme: getRestaurantTheme(targetRestoId),
       features: getRestaurantFeatures(targetRestoId),
+      upsellConfig: getRestaurantUpsellConfig(targetRestoId),
     });
   }
 
@@ -298,5 +299,6 @@ export async function GET() {
     waiterCalls: getActiveWaiterCalls(restaurantResult.data?.id),
     theme: getRestaurantTheme(restaurantResult.data?.id),
     features: getRestaurantFeatures(restaurantResult.data?.id),
+    upsellConfig: getRestaurantUpsellConfig(restaurantResult.data?.id),
   });
 }

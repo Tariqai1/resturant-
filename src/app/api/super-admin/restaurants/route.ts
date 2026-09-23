@@ -15,6 +15,8 @@ import {
   setRestaurantFeatures,
   getRestaurantOfferConfig,
   setRestaurantOfferConfig,
+  getRestaurantUpsellConfig,
+  setRestaurantUpsellConfig,
   getRestaurantPhone,
   setRestaurantPhone,
 } from "@/lib/platform/state";
@@ -110,6 +112,7 @@ export async function GET(request: Request) {
         branding: getRestaurantBranding(r.id),
         features: getRestaurantFeatures(r.id),
         offerConfig: getRestaurantOfferConfig(r.id),
+        upsellConfig: getRestaurantUpsellConfig(r.id),
         tables: restoTables.map((t) => ({
           id: t.id,
           table_number: t.table_number,
@@ -346,7 +349,7 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { id, ids, subscription_plan, subscription_status, name, gstin, action, theme, features, branding, offerConfig } = body;
+    const { id, ids, subscription_plan, subscription_status, name, gstin, action, theme, features, branding, offerConfig, upsellConfig } = body;
 
     const targetIds: string[] = Array.isArray(ids) && ids.length > 0 ? ids : (id ? [id] : []);
 
@@ -376,6 +379,11 @@ export async function PATCH(request: Request) {
       if (offerConfig && typeof offerConfig === "object") {
         for (const tid of targetIds) {
           setRestaurantOfferConfig(tid, offerConfig);
+        }
+      }
+      if (upsellConfig && typeof upsellConfig === "object") {
+        for (const tid of targetIds) {
+          setRestaurantUpsellConfig(tid, upsellConfig);
         }
       }
       const batchUpdates: Record<string, unknown> = {};
@@ -502,6 +510,17 @@ export async function PATCH(request: Request) {
         targetId: singleId,
         targetName,
         details: `Updated retention offers & scratch card settings for "${targetName}"`,
+      });
+    }
+
+    if (upsellConfig && typeof upsellConfig === "object") {
+      setRestaurantUpsellConfig(singleId, upsellConfig);
+      logActivity({
+        action: "STATUS_CHANGE",
+        actorEmail: authCheck.user?.email || "super-admin",
+        targetId: singleId,
+        targetName,
+        details: `Updated Smart Upsell & Basket Pairing settings for "${targetName}"`,
       });
     }
 

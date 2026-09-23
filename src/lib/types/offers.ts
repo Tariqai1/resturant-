@@ -33,3 +33,28 @@ export const DEFAULT_BRANDING_CONFIG: RestaurantBrandingConfig = {
   logoUrl: null,
   tagline: null,
 };
+
+export type UpsellStrategy = "smart_ai" | "bestsellers" | "high_margin" | "budget_addons";
+
+export type SmartUpsellConfig = {
+  enabled: boolean;
+  headline: string;
+  strategy: UpsellStrategy;
+  maxItems: number;
+  pushBeveragesWithStarters: boolean;
+  pushDessertsNearCheckout: boolean;
+  showSpendGoalNudge: boolean;
+  ownerCanManageUpsell?: boolean; // Granted by Super Admin to Restaurant Owner
+};
+
+export const DEFAULT_UPSELL_CONFIG: SmartUpsellConfig = {
+  enabled: true,
+  headline: "Pair With Your Order · Chef's Match",
+  strategy: "smart_ai",
+  maxItems: 4,
+  pushBeveragesWithStarters: true,
+  pushDessertsNearCheckout: true,
+  showSpendGoalNudge: true,
+  ownerCanManageUpsell: true,
+};
+

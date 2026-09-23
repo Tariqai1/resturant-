@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, useMemo, use } from "react";
 import FoodChefLoader from "@/components/FoodChefLoader";
 import ScratchCardModal from "@/components/table/ScratchCardModal";
 import {
@@ -9,6 +9,8 @@ import {
   RestaurantThemeType,
   RestaurantBrandingConfig,
   DEFAULT_BRANDING_CONFIG,
+  SmartUpsellConfig,
+  DEFAULT_UPSELL_CONFIG,
 } from "@/lib/types/offers";
 
 type MenuItem = {
@@ -210,6 +212,7 @@ export default function CustomerTableOrderingPage({
 
   // Dynamic Restaurant Offers & Retention Config
   const [offerConfig, setOfferConfig] = useState<RestaurantOfferConfig>(DEFAULT_OFFER_CONFIG);
+  const [upsellConfig, setUpsellConfig] = useState<SmartUpsellConfig>(DEFAULT_UPSELL_CONFIG);
   const [isScratchModalOpen, setIsScratchModalOpen] = useState(false);
 
   // Flow State
@@ -296,6 +299,7 @@ export default function CustomerTableOrderingPage({
           }
           if (parsed.features) setFeatures(parsed.features);
           if (parsed.offerConfig) setOfferConfig(parsed.offerConfig);
+          if (parsed.upsellConfig) setUpsellConfig(parsed.upsellConfig);
           setIsLoading(false); // 0.05s instant render!
         }
       } catch {
@@ -324,6 +328,7 @@ export default function CustomerTableOrderingPage({
       }
       if (data.features) setFeatures(data.features);
       if (data.offerConfig) setOfferConfig(data.offerConfig);
+      if (data.upsellConfig) setUpsellConfig(data.upsellConfig);
 
       // Persist in SWR LocalStorage Cache
       try {
@@ -358,6 +363,7 @@ export default function CustomerTableOrderingPage({
         }
         if (data.features) setFeatures(data.features);
         if (data.offerConfig) setOfferConfig(data.offerConfig);
+        if (data.upsellConfig) setUpsellConfig(data.upsellConfig);
         try {
           localStorage.setItem(`od_cache_${token}`, JSON.stringify(data));
         } catch {
@@ -518,10 +524,219 @@ export default function CustomerTableOrderingPage({
     })
     .slice(0, 10);
 
-  // Smart Upsell Items
-  const upsellCandidates = items
-    .filter((it) => !cart[it.id] && (it.is_bestseller || it.price <= 120))
-    .slice(0, 3);
+  // Intelligent Context-Aware Smart Upsell & Basket Pairing Engine
+  const upsellCandidates = useMemo(() => {
+    if (!features.smartUpsell || !upsellConfig.enabled) return [];
+
+    const cartDishIds = Object.keys(cart);
+    const cartDishList = cartDishIds
+      .map((id) => items.find((i) => i.id === id))
+      .filter(Boolean) as MenuItem[];
+
+    // Available items not currently in the cart
+    const availableItems = items.filter((it) => it.is_available && !cart[it.id]);
+    if (availableItems.length === 0) return [];
+
+    // Dietary integrity: If cart contains ONLY veg items, strictly recommend pure veg dishes
+    const isCartPureVeg = cartDishList.length > 0 && cartDishList.every((it) => it.is_veg);
+    const dietaryCandidates = isCartPureVeg ? availableItems.filter((it) => it.is_veg) : availableItems;
+
+    // Detect culinary components in diner's current cart
+    const hasCurry = cartDishList.some((it) => {
+      const n = it.name.toLowerCase();
+      const d = (it.description || "").toLowerCase();
+      return (
+        n.includes("curry") ||
+        n.includes("dal") ||
+        n.includes("gravy") ||
+        n.includes("masala") ||
+        n.includes("paneer") ||
+        n.includes("butter chicken") ||
+        d.includes("curry") ||
+        d.includes("gravy")
+      );
+    });
+
+    const hasBreadsOrRice = cartDishList.some((it) => {
+      const n = it.name.toLowerCase();
+      return (
+        n.includes("roti") ||
+        n.includes("naan") ||
+        n.includes("paratha") ||
+        n.includes("kulcha") ||
+        n.includes("bread") ||
+        n.includes("rice") ||
+        n.includes("biryani") ||
+        n.includes("pulao")
+      );
+    });
+
+    const hasStartersOrSpicy = cartDishList.some((it) => {
+      const n = it.name.toLowerCase();
+      return (
+        n.includes("tikka") ||
+        n.includes("kebab") ||
+        n.includes("starter") ||
+        n.includes("fry") ||
+        n.includes("chilli") ||
+        n.includes("schezwan") ||
+        n.includes("crispy") ||
+        n.includes("tandoor")
+      );
+    });
+
+    const hasDrinks = cartDishList.some((it) => {
+      const n = it.name.toLowerCase();
+      return (
+        n.includes("coke") ||
+        n.includes("soda") ||
+        n.includes("mojito") ||
+        n.includes("shake") ||
+        n.includes("lassi") ||
+        n.includes("juice") ||
+        n.includes("water") ||
+        n.includes("drink") ||
+        n.includes("beverage") ||
+        n.includes("chai") ||
+        n.includes("coffee") ||
+        n.includes("cooler")
+      );
+    });
+
+    const hasDessert = cartDishList.some((it) => {
+      const n = it.name.toLowerCase();
+      return (
+        n.includes("ice cream") ||
+        n.includes("gulab") ||
+        n.includes("sweet") ||
+        n.includes("halwa") ||
+        n.includes("kheer") ||
+        n.includes("cake") ||
+        n.includes("brownie") ||
+        n.includes("dessert") ||
+        n.includes("kulfi")
+      );
+    });
+
+    const spendGap = offerConfig.active ? offerConfig.minOrderValue - subtotalCart : 0;
+    const isNearSpendGoal = offerConfig.active && spendGap > 0 && spendGap <= 160;
+
+    type ScoredUpsell = {
+      id: string;
+      name: string;
+      price: number;
+      is_veg: boolean;
+      photo_url: string | null;
+      reasonTag: string;
+      reasonIcon: string;
+      score: number;
+    };
+
+    const scored: ScoredUpsell[] = [];
+
+    for (const item of dietaryCandidates) {
+      const n = item.name.toLowerCase();
+      const p = Number(item.price);
+      let score = 0;
+      let reasonTag = "Chef Pick";
+      let reasonIcon = "✨";
+
+      // Proximity spend-goal nudge: if item price bridges gap to unlock offer
+      if (upsellConfig.showSpendGoalNudge && isNearSpendGoal && p >= spendGap - 25 && p <= spendGap + 70) {
+        score += 85;
+        reasonTag = `Unlock ${offerConfig.discountPercent}% OFF`;
+        reasonIcon = "🎁";
+      }
+
+      // 1. Curry -> Breads & Rice pairing
+      if (hasCurry && !hasBreadsOrRice) {
+        if (n.includes("naan") || n.includes("roti") || n.includes("paratha") || n.includes("kulcha") || n.includes("jeera rice")) {
+          score += 65;
+          reasonTag = "Pairs with Curry";
+          reasonIcon = "🫓";
+        }
+      }
+
+      // 2. Starters / Spicy -> Cooling Beverages
+      if (upsellConfig.pushBeveragesWithStarters && hasStartersOrSpicy && !hasDrinks) {
+        if (n.includes("lassi") || n.includes("mojito") || n.includes("shake") || n.includes("cooler") || n.includes("soda") || n.includes("coke") || n.includes("juice") || n.includes("drink")) {
+          score += 60;
+          reasonTag = "Cooling Drink Pair";
+          reasonIcon = "🥤";
+        }
+      }
+
+      // 3. Meals -> Desserts near checkout
+      if (upsellConfig.pushDessertsNearCheckout && (subtotalCart >= 250 || cartDishList.length >= 2) && !hasDessert) {
+        if (n.includes("ice cream") || n.includes("gulab") || n.includes("halwa") || n.includes("kheer") || n.includes("brownie") || n.includes("kulfi")) {
+          score += 55;
+          reasonTag = "Sweet Finish";
+          reasonIcon = "🍨";
+        }
+      }
+
+      // Strategy-specific bonuses
+      if (upsellConfig.strategy === "bestsellers") {
+        if (item.is_bestseller) {
+          score += 40;
+          if (reasonTag === "Chef Pick") {
+            reasonTag = "Bestseller";
+            reasonIcon = "🔥";
+          }
+        }
+      } else if (upsellConfig.strategy === "high_margin") {
+        if (n.includes("beverage") || n.includes("drink") || n.includes("shake") || n.includes("papad") || n.includes("raita") || n.includes("starter") || n.includes("tikka")) {
+          score += 35;
+          if (reasonTag === "Chef Pick") {
+            reasonTag = "Popular Add-on";
+            reasonIcon = "⭐";
+          }
+        }
+      } else if (upsellConfig.strategy === "budget_addons") {
+        if (p <= 120) {
+          score += 45;
+          if (reasonTag === "Chef Pick") {
+            reasonTag = "Quick Add-on";
+            reasonIcon = "⚡";
+          }
+        }
+      } else {
+        // "smart_ai"
+        if (item.is_bestseller) score += 20;
+        if (p <= 150) score += 10;
+      }
+
+      // Fallback baseline score
+      if (score === 0) {
+        if (item.is_bestseller) {
+          score = 15;
+          reasonTag = "Crowd Favorite";
+          reasonIcon = "🔥";
+        } else if (p <= 110) {
+          score = 10;
+          reasonTag = "Budget Add-on";
+          reasonIcon = "⚡";
+        } else {
+          score = 5;
+        }
+      }
+
+      scored.push({
+        id: item.id,
+        name: item.name,
+        price: p,
+        is_veg: item.is_veg,
+        photo_url: item.photo_url,
+        reasonTag,
+        reasonIcon,
+        score,
+      });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    const maxLimit = Math.min(6, Math.max(1, upsellConfig.maxItems || 3));
+    return scored.slice(0, maxLimit);
+  }, [cart, items, features.smartUpsell, upsellConfig, offerConfig, subtotalCart]);
 
   // Dispatch Order to Kitchen
   async function handlePlaceOrder() {
@@ -2628,33 +2843,105 @@ export default function CustomerTableOrderingPage({
                 })}
               </div>
 
-              {/* Smart Upsell Recommendations */}
-              {features.smartUpsell && upsellCandidates.length > 0 && (
-                <div className="my-3 p-3 rounded-2xl border bg-stone-50/80" style={{ borderColor: "var(--hairline)" }}>
-                  <div className="text-[11px] font-bold text-stone-600 mb-2 flex items-center gap-1.5">
-                    <span>💡</span>
-                    <span>Frequently Ordered Together</span>
+              {/* Spend Goal Proximity Progress Nudge */}
+              {upsellConfig.showSpendGoalNudge && offerConfig.active && (
+                <div className="my-3 p-3 rounded-2xl border bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border-amber-500/30">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="font-bold flex items-center gap-1.5 text-amber-900">
+                      <span>🎯</span>
+                      {subtotalCart >= offerConfig.minOrderValue ? (
+                        <span className="text-emerald-700 font-extrabold">🎉 FLAT {offerConfig.discountPercent}% OFF Unlocked!</span>
+                      ) : (
+                        <span>
+                          Add <strong className="text-amber-950 font-receipt">₹{Math.max(0, offerConfig.minOrderValue - subtotalCart)}</strong> to unlock <strong>{offerConfig.discountPercent}% OFF</strong>
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-amber-800">
+                      ₹{subtotalCart}/₹{offerConfig.minOrderValue}
+                    </span>
                   </div>
-                  <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  <div className="w-full h-2 bg-stone-200/80 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 rounded-full ${
+                        subtotalCart >= offerConfig.minOrderValue
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                          : "bg-gradient-to-r from-amber-500 to-orange-500"
+                      }`}
+                      style={{
+                        width: `${Math.min(100, Math.round((subtotalCart / (offerConfig.minOrderValue || 1)) * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Smart Upsell & Basket Pairing Recommendations */}
+              {features.smartUpsell && upsellConfig.enabled && upsellCandidates.length > 0 && (
+                <div className="my-3 p-3 rounded-2xl border bg-stone-50/90 shadow-xs" style={{ borderColor: "var(--hairline)" }}>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">💡</span>
+                      <div>
+                        <div className="text-xs font-bold" style={{ color: "var(--ink)" }}>
+                          {upsellConfig.headline || "Frequently Ordered Together"}
+                        </div>
+                        <div className="text-[10px]" style={{ color: "var(--ink-soft)" }}>
+                          Intelligent pairings based on your selections
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                      Smart AI
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none snap-x">
                     {upsellCandidates.map((upsell) => (
                       <div
                         key={upsell.id}
-                        className="px-3 py-2 rounded-xl bg-white border flex items-center gap-2 shadow-xs shrink-0"
+                        className="p-2.5 rounded-xl bg-white border flex flex-col justify-between shadow-xs shrink-0 w-36 snap-start transition-all hover:border-amber-400"
                         style={{ borderColor: "var(--hairline)" }}
                       >
-                        <span className="text-sm">{getFoodEmoji(upsell.name, upsell.is_veg)}</span>
-                        <div className="text-left">
-                          <div className="text-[11px] font-bold truncate max-w-[90px]">{upsell.name}</div>
-                          <div className="text-[10px] font-receipt font-bold text-stone-500">₹{upsell.price}</div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className={upsell.is_veg ? "veg-indicator" : "nonveg-indicator"} />
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-700 truncate max-w-[95px] flex items-center gap-0.5">
+                              <span>{upsell.reasonIcon}</span>
+                              <span className="truncate">{upsell.reasonTag}</span>
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {upsell.photo_url ? (
+                              <img
+                                src={upsell.photo_url}
+                                alt={upsell.name}
+                                className="w-8 h-8 rounded-lg object-cover shrink-0"
+                              />
+                            ) : (
+                              <span className="text-xl shrink-0">{getFoodEmoji(upsell.name, upsell.is_veg)}</span>
+                            )}
+                            <div className="text-[11px] font-bold leading-tight line-clamp-2 text-stone-900">
+                              {upsell.name}
+                            </div>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(upsell.id)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs cursor-pointer shadow-xs"
-                          style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)" }}
-                        >
-                          +
-                        </button>
+
+                        <div className="pt-2 mt-1.5 border-t border-dashed border-stone-200 flex items-center justify-between">
+                          <span className="font-receipt font-extrabold text-xs text-stone-900">
+                            ₹{upsell.price}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => addToCart(upsell.id, e)}
+                            className="px-2 py-1 rounded-lg flex items-center gap-1 font-bold text-[10px] cursor-pointer shadow-xs active:scale-95 transition-all"
+                            style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)" }}
+                          >
+                            <span>+</span>
+                            <span>Add</span>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
