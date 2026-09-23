@@ -239,6 +239,8 @@ export default function CustomerTableOrderingPage({
   const [customerName, setCustomerName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccessMsg, setOrderSuccessMsg] = useState("");
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
+  const [selectedJourneyStation, setSelectedJourneyStation] = useState<number | null>(null);
 
 
 
@@ -530,6 +532,13 @@ export default function CustomerTableOrderingPage({
     })
     .slice(0, 10);
 
+  // Top Star Highlights & Chef's Bestsellers for the animated header rail
+  const topBestsellers = useMemo(() => {
+    const list = items.filter((it) => it.is_available && it.is_bestseller);
+    if (list.length >= 3) return list.slice(0, 8);
+    return items.filter((it) => it.is_available).slice(0, 6);
+  }, [items]);
+
   // Intelligent Context-Aware Smart Upsell & Basket Pairing Engine
   const upsellCandidates = useMemo(() => {
     if (!features.smartUpsell || !upsellConfig.enabled) return [];
@@ -772,9 +781,11 @@ export default function CustomerTableOrderingPage({
 
       setCart({});
       setIsReviewOpen(false);
+      setShowDispatchModal(true);
+      triggerHaptic(25);
       if (data.approvalPending) {
         setIsApprovalPending(true);
-        setOrderSuccessMsg("Order placed! Floor captain will verify items at your table shortly.");
+        setOrderSuccessMsg("Order dispatched! Floor captain will verify items at your table shortly.");
       } else {
         setOrderSuccessMsg("Order sent to kitchen! Cooking begins immediately.");
       }
@@ -1236,6 +1247,75 @@ export default function CustomerTableOrderingPage({
           )}
         </div>
       </header>
+
+      {/* Dynamic Island: Persistent Live Order Status Pill (Visible whenever order is active) */}
+      {activeOrder && activeOrder.order_items.length > 0 && (
+        <div
+          onClick={() => {
+            triggerHaptic(10);
+            setIsTicketExpanded(true);
+            const el = document.getElementById("live-order-journey-map");
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }}
+          className="mx-4 mt-2.5 px-3.5 py-2.5 rounded-2xl border shadow-sm cursor-pointer flex items-center justify-between transition-all hover:scale-[1.01] active:scale-[0.99] select-none"
+          style={{
+            backgroundColor: isApprovalPending
+              ? "#FFFBEB"
+              : activeStage === "preparing"
+              ? "#EFF6FF"
+              : activeStage === "served"
+              ? "#F0FDF4"
+              : "#FFF7ED",
+            borderColor: isApprovalPending
+              ? "#FCD34D"
+              : activeStage === "preparing"
+              ? "#93C5FD"
+              : activeStage === "served"
+              ? "#86EFAC"
+              : "#FDBA74",
+          }}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-ping"
+              style={{
+                backgroundColor: isApprovalPending
+                  ? "#D97706"
+                  : activeStage === "preparing"
+                  ? "#2563EB"
+                  : activeStage === "served"
+                  ? "#059669"
+                  : "#EA580C",
+              }}
+            />
+            <div className="min-w-0">
+              <div className="text-[11px] font-black uppercase tracking-wider truncate text-stone-900 flex items-center gap-1.5">
+                <span>
+                  {isApprovalPending
+                    ? "Station 2: Captain Verifying at Table"
+                    : activeStage === "preparing"
+                    ? "Station 3: Chef Cooking in Kitchen"
+                    : activeStage === "served"
+                    ? "Station 4: Served Hot & Fresh!"
+                    : "Station 1: Order Captured"}
+                </span>
+                {activeStage === "preparing" && remainingMinutesText && (
+                  <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-800 font-bold">
+                    ⏳ {remainingMinutesText}
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-stone-500 truncate">
+                {activeOrder.order_items.length} items in live ticket · Tap to view journey map
+              </div>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-amber-900 bg-white/80 px-2 py-1 rounded-lg border border-amber-200/60 shadow-2xs flex items-center gap-1 flex-shrink-0">
+            <span>Track</span>
+            <span>➔</span>
+          </span>
+        </div>
+      )}
 
       {/* Advanced Call Waiter Modal */}
       {isCallModalOpen && (
@@ -1699,79 +1779,79 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
-      {/* Waiter / Captain Order Verification Reassurance Card */}
-      {isApprovalPending && (
-        <div
-          className="mx-4 mt-3 p-3.5 rounded-2xl border shadow-sm animate-fade-in flex items-center justify-between"
-          style={{
-            backgroundColor: "#FFFBEB",
-            borderColor: "#FCD34D",
-            color: "#92400E",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl animate-pulse">⏳</span>
-            <div>
-              <div className="text-xs font-black tracking-wide uppercase flex items-center gap-1.5 text-amber-900">
-                <span>Captain Verification in Progress</span>
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              </div>
-              <div className="text-[11px] text-amber-800 font-medium mt-0.5">
-                Our floor captain is verifying your order at your table before firing to the kitchen.
-              </div>
-            </div>
-          </div>
-          <span className="text-[10px] font-mono font-bold px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-300 flex-shrink-0">
-            Awaiting Approval
-          </span>
-        </div>
-      )}
-
-      {/* Live Cooking Tracker: Sleek, compact & collapsible so it NEVER pushes down the menu */}
+      {/* Live Order Journey Tracker: 4-Station Interactive Visual Roadmap */}
       {activeOrder && activeOrder.order_items.length > 0 && (
         <div
-          className="mx-4 mt-3 rounded-2xl border shadow-xs overflow-hidden transition-all"
-          style={{
-            backgroundColor: "var(--paper-dim)",
-            borderColor: "var(--hairline)",
-          }}
+          id="live-order-journey-map"
+          className="mx-4 mt-3 rounded-2xl border shadow-sm overflow-hidden transition-all bg-white"
+          style={{ borderColor: "var(--hairline)" }}
         >
-          {/* Compact Clickable Summary Strip (~46px) */}
+          {/* Journey Header with Current Station Badge & Collapse Toggle */}
           <div
             onClick={() => setIsTicketExpanded(!isTicketExpanded)}
-            className="p-3 flex items-center justify-between cursor-pointer select-none hover:bg-white/40 transition-colors"
+            className="p-3.5 flex items-center justify-between cursor-pointer select-none bg-stone-50/80 border-b hover:bg-stone-100/60 transition-colors"
+            style={{ borderColor: "var(--hairline)" }}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-base">{activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "🍳"}</span>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold" style={{ color: "var(--ink)" }}>
-                    Live Kitchen Ticket
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-xl">
+                {activeStage === "served"
+                  ? "🍽️"
+                  : activeStage === "preparing"
+                  ? "🔥"
+                  : isApprovalPending
+                  ? "👨‍💼"
+                  : "📱"}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
+                    Live Order Journey
                   </span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/80 font-bold text-stone-600">
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-200 text-stone-700 font-bold">
                     #{activeOrder.id.slice(0, 6)}
                   </span>
                 </div>
-                <div className="text-[10px] text-stone-500">
-                  {activeOrder.order_items.length} dishes · Tap to {isTicketExpanded ? "collapse ▴" : "view details & repeat ▾"}
+                <div className="text-[11px] text-stone-500 font-medium truncate">
+                  {isApprovalPending
+                    ? "Station 2: Captain verifying items at Table"
+                    : activeStage === "preparing"
+                    ? `Station 3: Cooking in Kitchen ${remainingMinutesText ? `(${remainingMinutesText})` : ""}`
+                    : activeStage === "served"
+                    ? "Station 4: All dishes served hot!"
+                    : "Station 1: Order captured at Table"}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {features.prepTimeTracker && activeOrder.prepEstimate && activeStage !== "served" && (
-                <span className="text-[10px] font-mono font-bold text-stone-700 bg-white px-2 py-0.5 rounded border border-stone-200">
-                  ⏳ {remainingMinutesText || `${activeOrder.prepEstimate.minutes}m`}
-                </span>
-              )}
+            <div className="flex items-center gap-2 shrink-0">
               <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
                 style={{
-                  backgroundColor: activeStage === "served" ? "#E8F5E9" : activeStage === "preparing" ? "#E3F2FD" : "#FFF3E0",
-                  color: activeStage === "served" ? "#2E7D32" : activeStage === "preparing" ? "#1565C0" : "#E65100",
+                  backgroundColor:
+                    activeStage === "served"
+                      ? "#E8F5E9"
+                      : activeStage === "preparing"
+                      ? "#EFF6FF"
+                      : isApprovalPending
+                      ? "#FFFBEB"
+                      : "#F3F4F6",
+                  color:
+                    activeStage === "served"
+                      ? "#15803D"
+                      : activeStage === "preparing"
+                      ? "#1D4ED8"
+                      : isApprovalPending
+                      ? "#B45309"
+                      : "#374151",
                 }}
               >
-                {activeStage === "served" ? "Served" : activeStage === "preparing" ? "Cooking" : "Placed"}
+                {activeStage === "served"
+                  ? "Served"
+                  : activeStage === "preparing"
+                  ? "Cooking"
+                  : isApprovalPending
+                  ? "Verifying"
+                  : "Placed"}
               </span>
               <span className="text-xs font-bold text-stone-400">
                 {isTicketExpanded ? "▴" : "▾"}
@@ -1779,162 +1859,265 @@ export default function CustomerTableOrderingPage({
             </div>
           </div>
 
-          {/* Expanded Detail View (Only when user taps to expand) */}
-          {isTicketExpanded && (
-            <div className="p-4 pt-1 border-t border-dashed space-y-3" style={{ borderColor: "var(--hairline)" }}>
-              {/* Dynamic Prep Countdown Detail */}
-              {features.prepTimeTracker && activeOrder.prepEstimate && activeStage !== "served" && (
-                <div className="p-3 rounded-xl bg-white/90 border shadow-xs flex items-center justify-between" style={{ borderColor: "var(--hairline)" }}>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg animate-pulse" style={{ backgroundColor: "var(--brand-primary)", color: "var(--rust-text)" }}>
-                      ⏳
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">Estimated Cooking</div>
-                      <div className="text-sm font-heading font-extrabold flex items-baseline gap-1" style={{ color: "var(--ink)" }}>
-                        <span>{remainingMinutesText || "0:00"}</span>
-                        <span className="text-[10px] font-normal text-stone-500">remaining</span>
-                      </div>
-                    </div>
-                  </div>
+          {/* Visual 4-Station Travel Roadmap */}
+          <div className="p-4 space-y-4">
+            <div className="relative py-2">
+              {/* Connecting Track Line */}
+              <div className="absolute left-6 right-6 top-6 h-1.5 bg-stone-200 rounded-full -z-0" />
+              {/* Active Progress Track Line */}
+              <div
+                className="absolute left-6 top-6 h-1.5 bg-gradient-to-r from-emerald-500 via-amber-500 to-sky-500 rounded-full transition-all duration-700 -z-0"
+                style={{
+                  width:
+                    activeStage === "served"
+                      ? "calc(100% - 3rem)"
+                      : activeStage === "preparing"
+                      ? "66%"
+                      : isApprovalPending
+                      ? "33%"
+                      : "12%",
+                }}
+              />
 
-                  <div className="text-right">
-                    <span className="text-[10px] font-mono font-bold text-stone-500 block">
-                      Target: {activeOrder.prepEstimate.minutes}m
-                    </span>
-                    <span className="text-[9px] text-stone-400 capitalize">
-                      Set by {activeOrder.prepEstimate.setBy}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Pro Visual 3-Stage Progress Stepper */}
-              <div className="py-2.5 px-2 bg-white/70 rounded-xl border border-stone-200/80 shadow-xs">
-                <div className="relative flex items-center justify-between">
-                  {/* Connecting Background Line */}
-                  <div className="absolute left-6 right-6 top-4 h-1 bg-stone-200 -z-0" />
-                  {/* Connecting Active Progress Line */}
-                  <div
-                    className="absolute left-6 top-4 h-1 bg-emerald-500 transition-all duration-500 -z-0"
-                    style={{
-                      width: activeStage === "served" ? "calc(100% - 3rem)" : activeStage === "preparing" ? "50%" : "0%",
-                    }}
-                  />
-
-                  {/* Step 1: Placed */}
-                  <div className="flex flex-col items-center gap-1 z-10">
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-sm ring-4 ring-emerald-100">
-                      ✓
-                    </div>
-                    <span className="text-[10px] font-extrabold text-stone-800">1. Placed</span>
-                  </div>
-
-                  {/* Step 2: Cooking */}
-                  <div className="flex flex-col items-center gap-1 z-10">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm transition-all ${
-                        activeStage === "preparing" || activeStage === "served"
-                          ? "bg-amber-500 text-stone-900 ring-4 ring-amber-100"
-                          : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
-                      }`}
-                    >
-                      👨‍🍳
-                    </div>
-                    <span
-                      className={`text-[10px] font-extrabold ${
-                        activeStage === "preparing" ? "text-amber-700 animate-pulse font-black" : "text-stone-600"
-                      }`}
-                    >
-                      2. Cooking
-                    </span>
-                  </div>
-
-                  {/* Step 3: Served */}
-                  <div className="flex flex-col items-center gap-1 z-10">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-sm transition-all ${
-                        activeStage === "served"
-                          ? "bg-emerald-600 text-white ring-4 ring-emerald-100 animate-bounce"
-                          : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
-                      }`}
-                    >
-                      🍽️
-                    </div>
-                    <span
-                      className={`text-[10px] font-extrabold ${
-                        activeStage === "served" ? "text-emerald-700 font-black" : "text-stone-400"
-                      }`}
-                    >
-                      3. Served
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mystery Scratch Reward Card prompt when food is served */}
-              {activeStage === "served" && features.loyaltyOffers !== false && (
+              {/* 4 Interactive Stations */}
+              <div className="relative flex items-start justify-between z-10">
+                {/* Station 1: Your Table */}
                 <div
-                  onClick={() => {
-                    triggerHaptic(18);
-                    setIsScratchModalOpen(true);
-                  }}
-                  className="p-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 border border-amber-500 text-stone-900 shadow-md cursor-pointer active:scale-98 transition-transform flex items-center justify-between"
+                  onClick={() => setSelectedJourneyStation(1)}
+                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-2xl animate-bounce">🎁</span>
-                    <div className="text-left">
-                      <div className="text-xs font-black leading-tight">Scratch Mystery Voucher!</div>
-                      <div className="text-[10px] font-medium text-amber-950">
-                        {offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit"}
-                      </div>
-                    </div>
+                  <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-md ring-4 ring-emerald-100 transition-transform group-hover:scale-110">
+                    ✓
                   </div>
-                  <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-stone-900 text-amber-300 shadow-xs flex items-center gap-1">
-                    <span>Scratch</span>
-                    <span>➔</span>
+                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
+                    Your Table
+                  </span>
+                  <span className="text-[9px] text-emerald-700 font-bold">Placed</span>
+                </div>
+
+                {/* Station 2: Floor Captain */}
+                <div
+                  onClick={() => setSelectedJourneyStation(2)}
+                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
+                >
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
+                      activeStage === "preparing" || activeStage === "served"
+                        ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                        : isApprovalPending
+                        ? "bg-amber-500 text-stone-900 ring-4 ring-amber-200 animate-radar-wave"
+                        : "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                    }`}
+                  >
+                    {activeStage === "preparing" || activeStage === "served" || !isApprovalPending ? "✓" : "👨‍💼"}
+                  </div>
+                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
+                    Captain
+                  </span>
+                  <span
+                    className={`text-[9px] font-bold ${
+                      isApprovalPending ? "text-amber-700 animate-pulse" : "text-emerald-700"
+                    }`}
+                  >
+                    {isApprovalPending ? "Verifying" : "Approved"}
                   </span>
                 </div>
-              )}
 
-              {/* 1-Tap Re-order / Repeat Items List */}
-              <div className="pt-2 border-t border-dashed space-y-1.5" style={{ borderColor: "var(--hairline)" }}>
-                <div className="text-[11px] font-bold text-stone-600 flex items-center justify-between">
-                  <span>Dishes on Ticket:</span>
-                  <span className="text-[10px] font-normal text-stone-400">Need more? Tap repeat</span>
-                </div>
-                {activeOrder.order_items.map((it) => (
-                  <div key={it.id} className="flex justify-between items-center py-1.5 text-xs border-b border-stone-200/60 last:border-0">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span className={it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} />
-                      <span className="font-bold text-stone-800 truncate">{it.qty}× {it.menu_items?.name || "Dish"}</span>
-                      {it.item_status === "served" ? (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
-                          <span>✓</span> Ready
-                        </span>
-                      ) : it.item_status === "preparing" ? (
-                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse flex items-center gap-1 shrink-0">
-                          <span>🔥</span> Cooking
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
-                          <span>⏳</span> Queued
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleReorderItem(it)}
-                      className="px-2 py-0.5 rounded text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-xs transition-transform active:scale-95 ml-2 shrink-0"
-                      style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
-                    >
-                      + Repeat
-                    </button>
+                {/* Station 3: Kitchen Rail */}
+                <div
+                  onClick={() => setSelectedJourneyStation(3)}
+                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
+                >
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
+                      activeStage === "served"
+                        ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                        : activeStage === "preparing"
+                        ? "bg-blue-600 text-white ring-4 ring-blue-200 animate-radar-wave"
+                        : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                    }`}
+                  >
+                    {activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "👨‍🍳"}
                   </div>
-                ))}
+                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
+                    Kitchen
+                  </span>
+                  <span
+                    className={`text-[9px] font-bold ${
+                      activeStage === "preparing"
+                        ? "text-blue-700 animate-pulse"
+                        : activeStage === "served"
+                        ? "text-emerald-700"
+                        : "text-stone-400"
+                    }`}
+                  >
+                    {activeStage === "preparing"
+                      ? remainingMinutesText
+                        ? `${remainingMinutesText}`
+                        : "Cooking"
+                      : activeStage === "served"
+                      ? "Cooked"
+                      : "Pending"}
+                  </span>
+                </div>
+
+                {/* Station 4: Table Served */}
+                <div
+                  onClick={() => setSelectedJourneyStation(4)}
+                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
+                >
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
+                      activeStage === "served"
+                        ? "bg-emerald-600 text-white ring-4 ring-emerald-200 animate-bounce"
+                        : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                    }`}
+                  >
+                    {activeStage === "served" ? "✨" : "🍽️"}
+                  </div>
+                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
+                    Served
+                  </span>
+                  <span
+                    className={`text-[9px] font-bold ${
+                      activeStage === "served" ? "text-emerald-700" : "text-stone-400"
+                    }`}
+                  >
+                    {activeStage === "served" ? "At Table" : "Final"}
+                  </span>
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Dynamic Station Narrative Box */}
+            <div
+              className="p-3 rounded-xl border flex items-start gap-2.5 transition-all text-xs"
+              style={{
+                backgroundColor: isApprovalPending
+                  ? "#FFFBEB"
+                  : activeStage === "preparing"
+                  ? "#EFF6FF"
+                  : activeStage === "served"
+                  ? "#F0FDF4"
+                  : "#FAF8F5",
+                borderColor: isApprovalPending
+                  ? "#FDE68A"
+                  : activeStage === "preparing"
+                  ? "#BFDBFE"
+                  : activeStage === "served"
+                  ? "#BBF7D0"
+                  : "var(--hairline)",
+              }}
+            >
+              <span className="text-xl shrink-0 mt-0.5">
+                {isApprovalPending
+                  ? "👨‍💼"
+                  : activeStage === "preparing"
+                  ? "🍳"
+                  : activeStage === "served"
+                  ? "🎉"
+                  : "📍"}
+              </span>
+              <div>
+                <div className="font-heading font-black text-xs text-stone-900 mb-0.5">
+                  {isApprovalPending
+                    ? `Captain Verification at Table ${tableNumber}`
+                    : activeStage === "preparing"
+                    ? `Chef is Cooking in the Kitchen`
+                    : activeStage === "served"
+                    ? `All Dishes Delivered to Table ${tableNumber}!`
+                    : `Order Dispatched from Table ${tableNumber}`}
+                </div>
+                <div className="text-[11px] text-stone-600 leading-relaxed">
+                  {isApprovalPending
+                    ? "Our floor captain is reviewing the order items with you before sending the fire ticket (KOT) to the kitchen stoves."
+                    : activeStage === "preparing"
+                    ? `The kitchen station has fired your ticket and is preparing dishes fresh.${
+                        remainingMinutesText ? ` Target cooking time: ${remainingMinutesText} remaining.` : ""
+                      }`
+                    : activeStage === "served"
+                    ? "Hope you enjoy your meal! Need extra dips, water, or the bill? Tap 'Call Waiter' or request bill settlement anytime."
+                    : "Order has been registered from your phone. Traveling to the service captain."}
+                </div>
+              </div>
+            </div>
+
+            {/* Mystery Scratch Reward Card prompt when food is served */}
+            {activeStage === "served" && features.loyaltyOffers !== false && (
+              <div
+                onClick={() => {
+                  triggerHaptic(18);
+                  setIsScratchModalOpen(true);
+                }}
+                className="p-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 border border-amber-500 text-stone-900 shadow-md cursor-pointer active:scale-98 transition-transform flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl animate-bounce">🎁</span>
+                  <div className="text-left">
+                    <div className="text-xs font-black leading-tight">Scratch Mystery Voucher!</div>
+                    <div className="text-[10px] font-medium text-amber-950">
+                      {offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit"}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-stone-900 text-amber-300 shadow-xs flex items-center gap-1">
+                  <span>Scratch</span>
+                  <span>➔</span>
+                </span>
+              </div>
+            )}
+
+            {/* Collapsible Ordered Items List with 1-Tap Repeat */}
+            {isTicketExpanded && (
+              <div className="pt-3 border-t border-dashed space-y-2" style={{ borderColor: "var(--hairline)" }}>
+                <div className="text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider flex items-center justify-between">
+                  <span>Dishes in this order ({activeOrder.order_items.length}):</span>
+                  <span className="text-[9px] text-stone-400">Tap + Repeat to add more</span>
+                </div>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {activeOrder.order_items.map((it) => (
+                    <div
+                      key={it.id}
+                      className="p-2 rounded-lg bg-stone-50 border border-stone-200/80 flex items-center justify-between text-xs"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className={it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} />
+                        <span className="font-bold text-stone-800 truncate">
+                          {it.qty}× {it.menu_items?.name || "Dish"}
+                        </span>
+                        {it.item_status === "served" ? (
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                            <span>✓</span> Ready
+                          </span>
+                        ) : it.item_status === "preparing" ? (
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse flex items-center gap-1 shrink-0">
+                            <span>🔥</span> Cooking
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
+                            <span>⏳</span> Queued
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="font-mono font-black text-stone-900">
+                          ₹{Number(it.unit_price) * Number(it.qty)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleReorderItem(it)}
+                          className="px-2 py-1 rounded text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-2xs transition-transform active:scale-95"
+                          style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
+                        >
+                          + Repeat
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2092,6 +2275,127 @@ export default function CustomerTableOrderingPage({
               <span>🎁</span>
               <span>Reward</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Top Star Highlights & Chef's Recommendations Horizontal Snap Carousel */}
+      {topBestsellers.length > 0 && (
+        <div className="mt-4 pt-1 border-t border-stone-200/60">
+          <div className="px-4 flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-base animate-bounce">⭐</span>
+              <h2 className="text-xs font-black uppercase tracking-wider text-stone-900">
+                Top Star Highlights
+              </h2>
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                Most Loved
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-stone-600">
+              Table {tableNumber} Favorites
+            </span>
+          </div>
+
+          <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-none px-4 pb-2">
+            {topBestsellers.map((starDish) => {
+              const inCartCount = cart[starDish.id]?.qty || 0;
+              return (
+                <div
+                  key={`star-${starDish.id}`}
+                  className="w-40 shrink-0 snap-start rounded-2xl border border-stone-200/90 bg-white p-2.5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between select-none relative"
+                >
+                  <div
+                    onClick={() => {
+                      triggerHaptic(6);
+                      setPreviewDish(starDish);
+                    }}
+                    className="cursor-pointer group"
+                  >
+                    <div className="w-full h-24 rounded-xl overflow-hidden relative bg-stone-100 mb-2">
+                      {starDish.photo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={starDish.photo_url}
+                          alt={starDish.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 text-2xl">
+                          <span>{starDish.is_veg ? "🥗" : "🍗"}</span>
+                        </div>
+                      )}
+                      <div className="absolute top-1 left-1">
+                        <span
+                          className={
+                            starDish.is_veg
+                              ? "veg-indicator"
+                              : "nonveg-indicator"
+                          }
+                        />
+                      </div>
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[9px] font-black text-amber-300 flex items-center gap-0.5">
+                        <span>★</span>
+                        <span>4.8</span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-xs font-bold text-stone-900 leading-snug line-clamp-1">
+                      {starDish.name}
+                    </h3>
+                    <p className="text-[11px] font-black text-stone-900 mt-0.5">
+                      ₹{starDish.price}
+                    </p>
+                  </div>
+
+                  <div className="mt-2 pt-1.5 border-t border-stone-100 flex items-center justify-between">
+                    {inCartCount === 0 ? (
+                      <button
+                        type="button"
+                        onClick={(e) => addToCart(starDish.id, e)}
+                        className="w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-xs active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                        style={{
+                          backgroundColor: "var(--rust)",
+                          color: "var(--rust-text)",
+                        }}
+                      >
+                        <span>ADD</span>
+                        <span>+</span>
+                      </button>
+                    ) : (
+                      <div
+                        className="w-full h-7 flex items-center justify-between rounded-lg border shadow-xs overflow-hidden bg-white animate-spring-bounce"
+                        style={{ borderColor: "var(--rust)" }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(starDish.id)}
+                          className="w-6 h-full flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-100 transition-colors"
+                          style={{ color: "var(--rust)" }}
+                        >
+                          -
+                        </button>
+                        <span
+                          className="font-receipt text-xs font-black px-1 min-w-[16px] text-center"
+                          style={{ color: "var(--ink)" }}
+                        >
+                          {inCartCount}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => addToCart(starDish.id, e)}
+                          className="w-6 h-full flex items-center justify-center font-bold text-xs cursor-pointer hover:bg-stone-100 transition-colors"
+                          style={{ color: "var(--rust)" }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -2493,7 +2797,7 @@ export default function CustomerTableOrderingPage({
                         </button>
                       ) : (
                         <div
-                          className="h-7 flex items-center rounded-md border shadow-md overflow-hidden bg-white"
+                          className="h-7 flex items-center rounded-md border shadow-md overflow-hidden bg-white animate-spring-bounce"
                           style={{ borderColor: "var(--rust)" }}
                         >
                           <button
@@ -3244,6 +3548,109 @@ export default function CustomerTableOrderingPage({
           validityDays: offerConfig.validityDays || 15,
         }}
       />
+
+      {/* Post-Order Celebratory Dispatch & Live Routing Modal */}
+      {showDispatchModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
+        >
+          <div className="max-w-sm w-full bg-white rounded-3xl shadow-2xl p-6 text-center border border-amber-200 relative overflow-hidden animate-spring-bounce">
+            {/* Top Glowing Beam Icon */}
+            <div className="relative mx-auto w-20 h-20 mb-4 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
+              <div className="relative w-16 h-16 rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-3xl shadow-lg">
+                🚀
+              </div>
+            </div>
+
+            {/* Title & Tagline */}
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 inline-block mb-2">
+              Order Beamed Successfully
+            </span>
+            <h3 className="text-lg font-black text-stone-900 leading-tight">
+              Order Dispatched from Table {tableNumber}!
+            </h3>
+            <p className="text-xs text-stone-600 mt-2 leading-relaxed">
+              Your order has been wirelessly beamed to your Floor Captain and Kitchen terminal.
+            </p>
+
+            {/* Visual Dispatch Beam Track */}
+            <div className="my-5 p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-left">
+              <div className="text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-2.5 flex items-center justify-between">
+                <span>Dispatch Routing Path</span>
+                <span className="text-emerald-700 font-black">Live ⚡</span>
+              </div>
+              <div className="flex items-center justify-between relative">
+                {/* Connecting Track Line */}
+                <div className="absolute top-4 left-4 right-4 h-0.5 bg-gradient-to-r from-emerald-500 via-amber-400 to-stone-200 -z-0" />
+
+                {/* Node 1: Table */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black shadow-xs ring-4 ring-emerald-100">
+                    ✓
+                  </div>
+                  <span className="text-[10px] font-bold text-stone-800 mt-1">Table {tableNumber}</span>
+                  <span className="text-[8px] text-emerald-600 font-semibold">Sent</span>
+                </div>
+
+                {/* Node 2: Captain */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs shadow-xs ring-4 ring-amber-100 animate-pulse">
+                    👨‍💼
+                  </div>
+                  <span className="text-[10px] font-bold text-stone-800 mt-1">Captain</span>
+                  <span className="text-[8px] text-amber-600 font-semibold">Verifying</span>
+                </div>
+
+                {/* Node 3: Kitchen */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-8 h-8 rounded-full bg-stone-200 text-stone-500 flex items-center justify-center text-xs shadow-xs">
+                    👨‍🍳
+                  </div>
+                  <span className="text-[10px] font-bold text-stone-500 mt-1">Kitchen</span>
+                  <span className="text-[8px] text-stone-400 font-semibold">Queued</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(12);
+                  setShowDispatchModal(false);
+                  const el = document.getElementById("order-journey-tracker");
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+                className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                style={{
+                  backgroundColor: "var(--rust)",
+                  color: "var(--rust-text)",
+                }}
+              >
+                <span>Track Live Order Journey</span>
+                <span>&rarr;</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic(6);
+                  setShowDispatchModal(false);
+                }}
+                className="w-full py-2.5 rounded-xl text-xs font-bold text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                Browse Menu &amp; Add More Dishes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

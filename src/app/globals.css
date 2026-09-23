@@ -1730,3 +1730,33 @@ footer {
   animation: flyParticle 0.65s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+@keyframes springBounce {
+  0% { transform: scale(0.85); }
+  50% { transform: scale(1.08); }
+  75% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes radarWave {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+.animate-spring-bounce {
+  animation: springBounce 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-radar-wave {
+  animation: radarWave 2s infinite;
+}
+
