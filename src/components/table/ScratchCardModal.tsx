@@ -10,6 +10,7 @@ export type ScratchRewardData = {
   voucherCode: string;
   minOrderValue?: number;
   shareUrl?: string;
+  validityDays?: number;
 };
 
 interface ScratchCardModalProps {
@@ -176,14 +177,15 @@ export default function ScratchCardModal({
 
   // WhatsApp Voucher Message
   const sendToWhatsApp = () => {
+    const days = data.validityDays || 15;
     const text = `🎉 *${data.restaurantName} — VIP Dining Voucher* 🎟️
 ━━━━━━━━━━━━━━━━━━━━
 🎁 *Reward:* ${data.rewardTitle}
 🔑 *Voucher Code:* ${data.voucherCode}
 📍 *Table:* ${data.tableNumber}
-⏰ *Validity:* Next 15 Days on Dine-in & Takeaway
+⏰ *Validity:* Next ${days} Days on Dine-in & Takeaway
 ━━━━━━━━━━━━━━━━━━━━
-_Yeh WhatsApp message agle visit par cashier ya waiter ko dikhayein to redeem!_`;
+_Present this WhatsApp voucher to your server or cashier on your next visit to redeem!_`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
@@ -192,12 +194,11 @@ _Yeh WhatsApp message agle visit par cashier ya waiter ko dikhayein to redeem!_`
   // Viral WhatsApp Referral Message
   const shareWithFriends = () => {
     const shareLink = data.shareUrl || (typeof window !== "undefined" ? window.location.href : "");
-    const text = `Bhai! Maine aaj *${data.restaurantName}* par khana khaya, taste aur service bohot zabardast hai! 😋🔥
-
-Unhone dosto ke liye special 15% discount voucher diya hai:
+    const text = `Hey! I just had a wonderful meal at *${data.restaurantName}*! 😋🔥
+They gave me an exclusive dining voucher for friends:
 👉 ${shareLink}
 
-Agli baar sath chalte hain! 🍽️`;
+Join me next time! 🍽️`;
 
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
@@ -223,14 +224,14 @@ Agli baar sath chalte hain! 🍽️`;
         {/* Header Pill */}
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-widest bg-amber-100 text-amber-900 mb-3 border border-amber-300">
           <span>🎁</span>
-          <span>Google Pay Style Reward</span>
+          <span>VIP Dining Gift</span>
         </div>
 
         <h3 className="text-xl font-black tracking-tight text-stone-900 mb-1">
           {data.restaurantName}
         </h3>
         <p className="text-xs text-stone-500 mb-4 font-medium">
-          Aapki table ke liye ek special mystery voucher mila hai!
+          You unlocked an exclusive secret dining voucher for your table!
         </p>
 
         {/* SCRATCH CARD CONTAINER */}
@@ -254,7 +255,7 @@ Agli baar sath chalte hain! 🍽️`;
                 {data.voucherCode}
               </span>
               <span className="text-[10px] text-amber-700 font-bold">
-                {copiedCode ? "✓ Copied" : "📋 Copy"}
+                {copiedCode ? "✓ Copied" : "📋 Copy Code"}
               </span>
             </div>
           </div>
@@ -277,11 +278,11 @@ Agli baar sath chalte hain! 🍽️`;
         <div className="text-xs font-semibold text-stone-600 mb-5">
           {isRevealed ? (
             <span className="text-emerald-700 font-bold flex items-center justify-center gap-1">
-              <span>🎊</span> <span>Voucher Unlocked! Valid for 15 Days</span>
+              <span>🎊</span> <span>Voucher Unlocked! Valid for Next {data.validityDays || 15} Days</span>
             </span>
           ) : (
             <span className="text-stone-500 animate-pulse">
-              👆 Foil ko ungli se scratch karein
+              👆 Scratch foil with finger to reveal your voucher
             </span>
           )}
         </div>
@@ -296,7 +297,7 @@ Agli baar sath chalte hain! 🍽️`;
             style={{ backgroundColor: "#25D366" }}
           >
             <span className="text-base">📲</span>
-            <span>WhatsApp par ₹100 Voucher Save Karein</span>
+            <span>Save Voucher to WhatsApp</span>
           </button>
 
           {/* Viral Friend Referral */}
@@ -306,7 +307,7 @@ Agli baar sath chalte hain! 🍽️`;
             className="w-full py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-300 active:scale-[0.98] transition-transform cursor-pointer"
           >
             <span>👥</span>
-            <span>Dost ko 15% OFF Voucher Bhejo</span>
+            <span>Share Voucher with Friends</span>
           </button>
         </div>
 
@@ -316,7 +317,7 @@ Agli baar sath chalte hain! 🍽️`;
           onClick={onClose}
           className="mt-4 text-xs font-medium text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
         >
-          Menu par wapas jayein ✕
+          Back to Menu ✕
         </button>
       </div>
     </div>

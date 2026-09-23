@@ -2912,9 +2912,10 @@ export default function CustomerTableOrderingPage({
           restaurantName,
           tableNumber,
           rewardTitle: offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit",
-          rewardSubtitle: `Agle visit par ₹${offerConfig.minOrderValue || 399}+ ke bill par valid`,
+          rewardSubtitle: `Valid on orders above ₹${offerConfig.minOrderValue || 399} on your next visit`,
           voucherCode: `${offerConfig.bounceBackCode || "REPEAT100"}-T${tableNumber.replace(/\D/g, "") || "4"}`,
           shareUrl: typeof window !== "undefined" ? window.location.href : "",
+          validityDays: offerConfig.validityDays || 15,
         }}
       />
 

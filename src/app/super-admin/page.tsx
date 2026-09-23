@@ -93,8 +93,38 @@ export default function SuperAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // Tab navigation: Fleet Registry, Global Broadcast, Activity Log
-  const [activeTab, setActiveTab] = useState<"fleet" | "broadcast" | "activity">("fleet");
+  // Tab navigation: Fleet Registry, Themes & Branding, Offers & Campaigns, Global Broadcast, Activity Log
+  const [activeTab, setActiveTab] = useState<"fleet" | "theme" | "offers" | "broadcast" | "activity">("fleet");
+
+  // Dedicated Themes & Branding Studio state
+  const [selectedThemeRestoId, setSelectedThemeRestoId] = useState<string>("all");
+  const [themeStudioConfig, setThemeStudioConfig] = useState<RestaurantBrandingConfig>({
+    theme: "amber",
+    logoUrl: "",
+    tagline: "Instant Contactless Dining Experience",
+  });
+  const [themeSimView, setThemeSimView] = useState<"welcome" | "menu">("welcome");
+  const [isSavingThemeStudio, setIsSavingThemeStudio] = useState<boolean>(false);
+
+  // Dedicated Offers & Campaigns Engine state
+  const [campaignTargetMode, setCampaignTargetMode] = useState<"all" | "selected">("all");
+  const [campaignSelectedRestoIds, setCampaignSelectedRestoIds] = useState<string[]>([]);
+  const [campaignOfferConfig, setCampaignOfferConfig] = useState<RestaurantOfferConfig>(DEFAULT_OFFER_CONFIG);
+  const [isSavingCampaign, setIsSavingCampaign] = useState<boolean>(false);
+
+  // Synchronize Theme Studio with selected outlet
+  useEffect(() => {
+    if (selectedThemeRestoId !== "all") {
+      const found = restaurants.find((r) => r.id === selectedThemeRestoId);
+      if (found) {
+        setThemeStudioConfig({
+          theme: found.branding?.theme || found.theme || "amber",
+          logoUrl: found.branding?.logoUrl || "",
+          tagline: found.branding?.tagline || "Instant Contactless Dining Experience",
+        });
+      }
+    }
+  }, [selectedThemeRestoId, restaurants]);
 
   // Broadcast state
   const [broadcastForm, setBroadcastForm] = useState<BroadcastState>({
@@ -501,7 +531,7 @@ export default function SuperAdminPage() {
     if (feats.mobileNavStyle === "bottom_bar") activeList.push("⚡ Mobile Bottom Bar (Thumb Optimized)");
     if (feats.autoMobileCards) activeList.push("🖼️ Touch Dish Cards for Mobile");
 
-    const text = `🎉 *Namaste ${resto.ownerName}! Welcome to OrderDesk*\n\nYour outlet *${resto.name}* is live with premium digital POS features:\n\n✨ *Active Features*:\n${activeList.map((f) => `• ${f}`).join("\n")}\n\n📱 *Manager POS Login Link*:\n${loginUrl}\n\n👤 *Owner*: ${resto.ownerName}\n📧 *Owner Email*: ${resto.ownerEmail}\n\nOpen this link on your phone or tablet to start taking orders!`;
+    const text = `🎉 *Hello ${resto.ownerName}! Welcome to OrderDesk*\n\nYour outlet *${resto.name}* is live with premium digital POS features:\n\n✨ *Active Features*:\n${activeList.map((f) => `• ${f}`).join("\n")}\n\n📱 *Manager POS Login Link*:\n${loginUrl}\n\n👤 *Owner*: ${resto.ownerName}\n📧 *Owner Email*: ${resto.ownerEmail}\n\nOpen this link on your phone or tablet to start taking orders!`;
 
     const cleanPhone = (resto.contactPhone || "").replace(/\D/g, "");
     return cleanPhone
@@ -519,6 +549,94 @@ export default function SuperAdminPage() {
       act.details.toLowerCase().includes(activitySearch.toLowerCase());
     return matchesAction && matchesSearch;
   });
+
+  // Handle Save from Dedicated Themes & Branding Studio
+  const handleSaveThemeStudio = async (applyToAll = false) => {
+    const targetIds = applyToAll
+      ? restaurants.map((r) => r.id)
+      : selectedThemeRestoId === "all"
+      ? restaurants.map((r) => r.id)
+      : [selectedThemeRestoId];
+
+    if (targetIds.length === 0) {
+      showToast("No restaurant available to apply theme.");
+      return;
+    }
+
+    setIsSavingThemeStudio(true);
+    startTransition(async () => {
+      try {
+        const payload = {
+          ids: targetIds,
+          theme: themeStudioConfig.theme,
+          branding: themeStudioConfig,
+        };
+        const res = await fetch("/api/super-admin/restaurants", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(
+            applyToAll || targetIds.length > 1
+              ? `Branding & Theme applied to all ${targetIds.length} restaurants!`
+              : `Theme and branding saved for ${restaurants.find((r) => r.id === targetIds[0])?.name || "restaurant"}!`
+          );
+          fetchData();
+        } else {
+          showToast(`Error: ${data.message}`);
+        }
+      } catch {
+        showToast("Network error saving theme");
+      } finally {
+        setIsSavingThemeStudio(false);
+      }
+    });
+  };
+
+  // Handle Save from Dedicated Offers & Campaigns Engine
+  const handleSaveCampaign = async () => {
+    const targetIds =
+      campaignTargetMode === "all"
+        ? restaurants.map((r) => r.id)
+        : campaignSelectedRestoIds;
+
+    if (targetIds.length === 0) {
+      showToast("Please select at least one restaurant for this campaign.");
+      return;
+    }
+
+    setIsSavingCampaign(true);
+    startTransition(async () => {
+      try {
+        const payload = {
+          ids: targetIds,
+          offerConfig: campaignOfferConfig,
+        };
+        const res = await fetch("/api/super-admin/restaurants", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          showToast(
+            `Campaign launched successfully across ${targetIds.length} ${
+              targetIds.length === 1 ? "restaurant" : "restaurants"
+            }!`
+          );
+          fetchData();
+        } else {
+          showToast(`Error: ${data.message}`);
+        }
+      } catch {
+        showToast("Network error launching campaign");
+      } finally {
+        setIsSavingCampaign(false);
+      }
+    });
+  };
 
   // Handle Quick Status Toggle
   const handleToggleStatus = (restaurant: RestaurantFleetItem) => {
@@ -1013,6 +1131,42 @@ export default function SuperAdminPage() {
                     {restaurants.length}
                   </span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("theme")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "theme"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-palette text-xs" />
+                    <span>Themes &amp; Branding</span>
+                  </div>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-800/50">
+                    5 Styles
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("offers")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === "offers"
+                      ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                      : "text-[#A89F91] hover:text-white hover:bg-[#1E1914]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <i className="fa-solid fa-tags text-xs" />
+                    <span>Offers &amp; Campaigns</span>
+                  </div>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
+                    Active
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -1401,6 +1555,36 @@ export default function SuperAdminPage() {
               }`}
             >
               {restaurants.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("theme")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "theme"
+                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
+            }`}
+          >
+            <i className="fa-solid fa-palette" />
+            <span>Themes &amp; Branding</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-800/50">
+              5 Styles
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("offers")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "offers"
+                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
+                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
+            }`}
+          >
+            <i className="fa-solid fa-tags" />
+            <span>Offers &amp; Campaigns</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
+              Builder
             </span>
           </button>
 
@@ -1940,7 +2124,920 @@ export default function SuperAdminPage() {
         </>
       )}
 
-      {/* TAB 2: GLOBAL BROADCAST */}
+      {/* TAB 2: DEDICATED THEMES & BRANDING STUDIO */}
+      {activeTab === "theme" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Studio Header Toolbar */}
+          <div className="bg-[#181410] border border-[#26201A] rounded-xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-purple-950/60 border border-purple-800/60 text-purple-300 flex items-center justify-center text-sm">
+                  <i className="fa-solid fa-palette" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base tracking-tight">Themes &amp; White-Label Branding Studio</h3>
+                  <p className="text-xs text-[#8C8275]">
+                    Customize restaurant palettes, custom brand logos, taglines, and inspect on a real-time mobile simulator.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Target Restaurant Selector */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-[#8C8275] uppercase">Target Outlet:</span>
+                <select
+                  value={selectedThemeRestoId}
+                  onChange={(e) => setSelectedThemeRestoId(e.target.value)}
+                  className="bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] text-xs font-semibold text-white rounded-lg px-3 py-2 focus:outline-none"
+                >
+                  <option value="all">⚡ All Outlets (Bulk Mode)</option>
+                  {restaurants.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.branding?.theme || r.theme || "amber"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                disabled={isSavingThemeStudio}
+                onClick={() => handleSaveThemeStudio(selectedThemeRestoId === "all")}
+                className="px-4 py-2 bg-gradient-to-r from-[#D96B27] to-[#B85418] hover:from-[#E3752F] text-white rounded-lg text-xs font-bold shadow-lg shadow-[#D96B27]/20 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              >
+                <i className={`fa-solid ${isSavingThemeStudio ? "fa-circle-notch animate-spin" : "fa-floppy-disk"}`} />
+                <span>{isSavingThemeStudio ? "Saving..." : selectedThemeRestoId === "all" ? "Apply to All Outlets" : "Save Changes"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Studio Workspace Layout */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {/* Left Controls Column (7 Cols) */}
+            <div className="xl:col-span-7 space-y-6">
+              {/* Card 1: 5 Signature Dining Themes */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-6 shadow-xl space-y-4">
+                <div className="border-b border-[#26201B] pb-3 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#D96B27]">Step 1: Color Palette</h4>
+                    <h3 className="text-sm font-bold text-white mt-0.5">5 Signature Dining Palettes</h3>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950/60 text-purple-300 border border-purple-800/60 font-bold uppercase">
+                    White-Label CSS Tokens
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {[
+                    {
+                      id: "saffron" as const,
+                      name: "Punjab Saffron",
+                      tag: "Highway Dhabas, Tandoor & Grills",
+                      badge: "🔥 Rustic & Bold",
+                      primary: "#EA580C",
+                      surface: "#FDF8F3",
+                      dark: "#2C1810",
+                    },
+                    {
+                      id: "amber" as const,
+                      name: "Amber Gold",
+                      tag: "Fine Dining & Heritage Mughlai",
+                      badge: "👑 Royal & Heritage",
+                      primary: "#FFBE0B",
+                      surface: "#FFFDF9",
+                      dark: "#2A2312",
+                    },
+                    {
+                      id: "crimson" as const,
+                      name: "Velvet Crimson",
+                      tag: "Luxury Bistros & Wine Lounges",
+                      badge: "🍷 Velvet Luxury",
+                      primary: "#741A2F",
+                      surface: "#FAF4F5",
+                      dark: "#380C16",
+                    },
+                    {
+                      id: "emerald" as const,
+                      name: "Pure Emerald",
+                      tag: "Pure Veg Udipi & South Indian",
+                      badge: "🌿 Sattvik & Fresh",
+                      primary: "#059669",
+                      surface: "#F6FAF7",
+                      dark: "#022C22",
+                    },
+                    {
+                      id: "charcoal" as const,
+                      name: "Midnight Charcoal",
+                      tag: "Night Cafes, Pubs & Burgers",
+                      badge: "⚡ Cyber & Modern",
+                      primary: "#18181B",
+                      surface: "#FAFAFA",
+                      dark: "#09090B",
+                    },
+                  ].map((thm) => {
+                    const isSelected = themeStudioConfig.theme === thm.id;
+                    return (
+                      <button
+                        key={thm.id}
+                        type="button"
+                        onClick={() => setThemeStudioConfig((prev) => ({ ...prev, theme: thm.id }))}
+                        className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                          isSelected
+                            ? "bg-[#251E17] border-[#D96B27] shadow-lg shadow-[#D96B27]/10 ring-1 ring-[#D96B27]"
+                            : "bg-[#14110E] border-[#2A231C] hover:border-[#3E342B] hover:bg-[#1A1612]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-4 h-4 rounded-full border border-black/30 shadow-xs flex-shrink-0"
+                              style={{ backgroundColor: thm.primary }}
+                            />
+                            <span className="font-bold text-xs text-white">{thm.name}</span>
+                          </div>
+                          {isSelected && (
+                            <span className="text-[10px] font-mono font-bold text-[#D96B27] bg-[#D96B27]/15 px-1.5 py-0.2 rounded border border-[#D96B27]/30">
+                              ACTIVE
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-[#A89F91] mt-2 mb-2 line-clamp-1">{thm.tag}</p>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-white/5">
+                          <span className="text-[10px] font-medium text-[#8C8275]">{thm.badge}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: thm.primary }} />
+                            <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: thm.surface }} />
+                            <span className="w-3 h-3 rounded-full border border-black/20" style={{ backgroundColor: thm.dark }} />
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card 2: Brand Identity Assets */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-6 shadow-xl space-y-4">
+                <div className="border-b border-[#26201B] pb-3">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#D96B27]">Step 2: Brand Identity</h4>
+                  <h3 className="text-sm font-bold text-white mt-0.5">Custom Logo &amp; Slogan</h3>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* Logo URL Input with Live Avatar */}
+                  <div>
+                    <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1.5 flex items-center justify-between">
+                      <span>Brand Logo Image URL (PNG/SVG/WebP)</span>
+                      <span className="text-[#8C8275] lowercase font-sans">Transparent or circular logo recommended</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {themeStudioConfig.logoUrl ? (
+                        <img
+                          src={themeStudioConfig.logoUrl}
+                          alt="Brand Logo Preview"
+                          className="w-12 h-12 rounded-xl object-cover border border-[#3E342B] bg-white/5 p-1 shrink-0 shadow-sm"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = "";
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl border border-dashed border-[#3E342B] bg-[#14110E] flex items-center justify-center text-[#8C8275] text-xs font-mono shrink-0">
+                          <i className="fa-solid fa-image text-sm" />
+                        </div>
+                      )}
+                      <input
+                        type="url"
+                        placeholder="https://example.com/logo.png"
+                        value={themeStudioConfig.logoUrl || ""}
+                        onChange={(e) => setThemeStudioConfig((prev) => ({ ...prev, logoUrl: e.target.value }))}
+                        className="flex-1 bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2.5 text-white focus:outline-none font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Brand Tagline */}
+                  <div>
+                    <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1.5 flex items-center justify-between">
+                      <span>Custom Restaurant Tagline</span>
+                      <span className="text-[#8C8275] font-sans">Shown under restaurant name on customer mobile</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Authentic Tandoor Delights & Craft Beverages"
+                      value={themeStudioConfig.tagline || ""}
+                      onChange={(e) => setThemeStudioConfig((prev) => ({ ...prev, tagline: e.target.value }))}
+                      className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2.5 text-white focus:outline-none text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setThemeStudioConfig({
+                        theme: "amber",
+                        logoUrl: "",
+                        tagline: "Instant Contactless Dining Experience",
+                      })
+                    }
+                    className="text-[#8C8275] hover:text-white transition-colors cursor-pointer"
+                  >
+                    Reset to Platform Defaults
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSavingThemeStudio}
+                      onClick={() => handleSaveThemeStudio(true)}
+                      className="px-3 py-1.5 bg-[#251E17] hover:bg-[#33291F] text-[#D96B27] border border-[#D96B27]/40 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                      Bulk Apply to All Outlets
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingThemeStudio}
+                      onClick={() => handleSaveThemeStudio(false)}
+                      className="px-4 py-1.5 bg-[#D96B27] hover:bg-[#E3752F] text-white rounded-lg text-xs font-bold shadow-md cursor-pointer transition-all"
+                    >
+                      {isSavingThemeStudio ? "Saving..." : "Save for Selected"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Simulator Column (5 Cols) */}
+            <div className="xl:col-span-5 sticky top-6 space-y-3">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8C8275]">
+                  Live Mobile Simulator
+                </span>
+                <div className="flex items-center gap-1 bg-[#181410] border border-[#26201A] p-0.5 rounded-lg text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setThemeSimView("welcome")}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      themeSimView === "welcome" ? "bg-[#D96B27] text-white" : "text-[#A89F91] hover:text-white"
+                    }`}
+                  >
+                    Welcome Screen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setThemeSimView("menu")}
+                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                      themeSimView === "menu" ? "bg-[#D96B27] text-white" : "text-[#A89F91] hover:text-white"
+                    }`}
+                  >
+                    Live Menu
+                  </button>
+                </div>
+              </div>
+
+              {/* Smartphone Frame */}
+              <div className="w-full max-w-[340px] mx-auto bg-black rounded-[42px] p-3 shadow-2xl border-4 border-stone-800 relative">
+                {/* Speaker Notch */}
+                <div className="absolute top-5 left-1/2 -translate-x-1/2 w-24 h-4 bg-stone-900 rounded-full z-20 flex items-center justify-center">
+                  <div className="w-3 h-3 rounded-full bg-black mr-2" />
+                  <div className="w-8 h-1 rounded-full bg-stone-800" />
+                </div>
+
+                {/* Mobile Viewport Screen */}
+                <div
+                  data-theme={themeStudioConfig.theme}
+                  className="w-full h-[520px] rounded-[32px] overflow-hidden flex flex-col justify-between p-4 relative select-none"
+                  style={{
+                    backgroundColor:
+                      themeStudioConfig.theme === "saffron"
+                        ? "#FDF8F3"
+                        : themeStudioConfig.theme === "crimson"
+                        ? "#FAF4F5"
+                        : themeStudioConfig.theme === "emerald"
+                        ? "#F6FAF7"
+                        : themeStudioConfig.theme === "charcoal"
+                        ? "#F4F4F5"
+                        : "#FFFDF9",
+                    color:
+                      themeStudioConfig.theme === "charcoal"
+                        ? "#18181B"
+                        : themeStudioConfig.theme === "crimson"
+                        ? "#380C16"
+                        : themeStudioConfig.theme === "saffron"
+                        ? "#2C1810"
+                        : themeStudioConfig.theme === "emerald"
+                        ? "#022C22"
+                        : "#2A2312",
+                  }}
+                >
+                  {/* Status Bar */}
+                  <div className="flex items-center justify-between text-[10px] font-bold opacity-60 pt-1 pb-2">
+                    <span>9:41</span>
+                    <div className="flex items-center gap-1">
+                      <span>5G</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+
+                  {themeSimView === "welcome" ? (
+                    // WELCOME SCREEN SIMULATOR
+                    <div className="flex-1 flex flex-col justify-between py-2">
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shadow-xs">
+                          <span>✦</span>
+                          <span>VIP Table Service</span>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 pt-1">
+                          {themeStudioConfig.logoUrl ? (
+                            <img
+                              src={themeStudioConfig.logoUrl}
+                              alt="Logo"
+                              className="w-10 h-10 rounded-xl object-cover border border-black/10 shadow-xs flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white font-bold flex items-center justify-center text-sm shadow-xs flex-shrink-0">
+                              OD
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <h2 className="font-extrabold text-base tracking-tight truncate leading-tight">
+                              {restaurants.find((r) => r.id === selectedThemeRestoId)?.name || "Sample Restaurant"}
+                            </h2>
+                            <p className="text-[10px] opacity-70 truncate mt-0.5">
+                              {themeStudioConfig.tagline || "Instant Contactless Dining Experience"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Confirmed Table Card */}
+                      <div className="my-auto p-4 rounded-2xl border border-black/10 bg-white/80 shadow-md text-center">
+                        <div className="text-[9px] font-black uppercase tracking-widest text-emerald-600 flex items-center justify-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>CONFIRMED TABLE</span>
+                        </div>
+                        <div className="text-4xl font-black tracking-tight mt-1 leading-none text-stone-900">
+                          T-04
+                        </div>
+                        <div className="text-[10px] text-stone-500 font-medium mt-1">
+                          Live Dining Session Active
+                        </div>
+                      </div>
+
+                      {/* CTA Button */}
+                      <div className="space-y-1">
+                        <div
+                          className="w-full py-2.5 rounded-xl text-center text-xs font-black shadow-md cursor-pointer text-white"
+                          style={{
+                            backgroundColor:
+                              themeStudioConfig.theme === "saffron"
+                                ? "#EA580C"
+                                : themeStudioConfig.theme === "crimson"
+                                ? "#741A2F"
+                                : themeStudioConfig.theme === "emerald"
+                                ? "#059669"
+                                : themeStudioConfig.theme === "charcoal"
+                                ? "#18181B"
+                                : "#D97706",
+                          }}
+                        >
+                          Explore Menu &amp; Order →
+                        </div>
+                        <p className="text-center text-[9px] opacity-60">No mobile app needed • Instant kitchen order</p>
+                      </div>
+                    </div>
+                  ) : (
+                    // LIVE MENU SIMULATOR
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                      {/* Sticky Header */}
+                      <div className="p-2 rounded-xl bg-white/90 border border-black/10 shadow-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {themeStudioConfig.logoUrl ? (
+                            <img
+                              src={themeStudioConfig.logoUrl}
+                              alt="Logo"
+                              className="w-7 h-7 rounded-lg object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-lg bg-amber-500 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                              T
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold block truncate">
+                              {restaurants.find((r) => r.id === selectedThemeRestoId)?.name || "Sample Restaurant"}
+                            </span>
+                            <span className="text-[9px] text-emerald-600 font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Table T-04 · Live
+                            </span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 font-bold border border-stone-200">
+                          🛎️ Call
+                        </span>
+                      </div>
+
+                      {/* Promo Offer Banner Preview */}
+                      <div className="my-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                        <div className="text-[10px] font-black text-amber-900">
+                          FLAT 20% OFF TODAY
+                        </div>
+                        <div className="text-[8px] text-amber-700">Auto-applied above ₹399</div>
+                      </div>
+
+                      {/* Sample Dish Cards */}
+                      <div className="space-y-1.5 overflow-hidden">
+                        {[
+                          { name: "Special Paneer Tikka", price: "₹280", veg: true },
+                          { name: "Murgh Dum Biryani", price: "₹340", veg: false },
+                          { name: "Butter Garlic Naan", price: "₹75", veg: true },
+                        ].map((dish, i) => (
+                          <div
+                            key={i}
+                            className="p-2 rounded-xl bg-white/80 border border-black/5 flex items-center justify-between text-xs shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`w-2.5 h-2.5 rounded-xs border flex items-center justify-center text-[7px] ${
+                                  dish.veg ? "border-emerald-600 text-emerald-600" : "border-red-600 text-red-600"
+                                }`}
+                              >
+                                ●
+                              </span>
+                              <span className="font-bold text-[11px]">{dish.name}</span>
+                            </div>
+                            <span className="font-mono font-bold text-[11px]">{dish.price}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Bottom Cart Bar */}
+                      <div className="mt-auto pt-2">
+                        <div className="p-2 rounded-xl bg-stone-900 text-white flex items-center justify-between text-[11px] font-bold shadow-md">
+                          <span>2 Items in Cart</span>
+                          <span>View Order (₹620) →</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: DEDICATED OFFERS & CAMPAIGNS ENGINE */}
+      {activeTab === "offers" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Campaign Header Toolbar & Presets */}
+          <div className="bg-[#181410] border border-[#26201A] rounded-xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 flex items-center justify-center text-sm">
+                  <i className="fa-solid fa-tags" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base tracking-tight">Offers &amp; Retention Campaigns Engine</h3>
+                  <p className="text-xs text-[#8C8275]">
+                    Configure discount banners, scratch cards, and viral WhatsApp dining vouchers across target outlets.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick 1-Click Campaign Presets */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono text-[#8C8275] uppercase">Fast Presets:</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignOfferConfig({
+                    active: true,
+                    bannerText: "FLAT 20% OFF THIS WEEKEND · On all dining orders above ₹499",
+                    discountPercent: 20,
+                    minOrderValue: 499,
+                    bounceBackReward: "₹100 OFF on your next visit (Min order ₹499)",
+                    bounceBackCode: "WEEKEND20",
+                    referralDiscount: "15% OFF for your friends",
+                    validityDays: 15,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-amber-300 border border-amber-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                ⚡ Weekend Flash 20%
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignOfferConfig({
+                    active: true,
+                    bannerText: "DINE & SAVE · Instant ₹100 voucher on every table order",
+                    discountPercent: 10,
+                    minOrderValue: 299,
+                    bounceBackReward: "Flat ₹100 OFF on your next visit",
+                    bounceBackCode: "REPEAT100",
+                    referralDiscount: "15% OFF for your friends",
+                    validityDays: 15,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-emerald-300 border border-emerald-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                🎁 Repeat Diner ₹100
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCampaignOfferConfig({
+                    active: true,
+                    bannerText: "GRAND FESTIVAL SPECIAL · 25% OFF on dining above ₹799",
+                    discountPercent: 25,
+                    minOrderValue: 799,
+                    bounceBackReward: "₹200 Gourmet Dining Gift (Min order ₹999)",
+                    bounceBackCode: "FEAST25",
+                    referralDiscount: "20% OFF for your friends",
+                    validityDays: 30,
+                  })
+                }
+                className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2A231C] text-purple-300 border border-purple-800/50 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+              >
+                👑 Festival Feast 25%
+              </button>
+            </div>
+          </div>
+
+          {/* Campaign Workspace Layout */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Campaign Form & Target Outlets (7 Cols) */}
+            <div className="xl:col-span-7 space-y-6">
+              {/* Target Outlets Card */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-6 shadow-xl space-y-4">
+                <div className="border-b border-[#26201B] pb-3 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#D96B27]">Step 1: Distribution</h4>
+                    <h3 className="text-sm font-bold text-white mt-0.5">Select Target Restaurants</h3>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="targetMode"
+                        checked={campaignTargetMode === "all"}
+                        onChange={() => setCampaignTargetMode("all")}
+                        className="accent-[#D96B27]"
+                      />
+                      <span className="font-semibold text-white">All Fleet Outlets ({restaurants.length})</span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="targetMode"
+                        checked={campaignTargetMode === "selected"}
+                        onChange={() => setCampaignTargetMode("selected")}
+                        className="accent-[#D96B27]"
+                      />
+                      <span className="font-semibold text-white">Select Outlets ({campaignSelectedRestoIds.length})</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Multi-Select Outlet List if specific mode */}
+                {campaignTargetMode === "selected" && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-[11px] text-[#8C8275]">
+                      <span>Check the outlets that should activate this campaign:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCampaignSelectedRestoIds(restaurants.map((r) => r.id))}
+                          className="text-[#D96B27] hover:underline cursor-pointer"
+                        >
+                          Select All
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setCampaignSelectedRestoIds([])}
+                          className="text-[#8C8275] hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 bg-[#12100E] border border-[#2D251F] rounded-lg">
+                      {restaurants.map((r) => {
+                        const isChecked = campaignSelectedRestoIds.includes(r.id);
+                        return (
+                          <label
+                            key={r.id}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer text-xs transition-colors ${
+                              isChecked
+                                ? "bg-[#251E17] border-[#D96B27]/60 text-white"
+                                : "bg-[#16120E] border-transparent text-[#A89F91] hover:text-white"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setCampaignSelectedRestoIds((prev) => [...prev, r.id]);
+                                } else {
+                                  setCampaignSelectedRestoIds((prev) => prev.filter((id) => id !== r.id));
+                                }
+                              }}
+                              className="accent-[#D96B27] rounded"
+                            />
+                            <div className="min-w-0">
+                              <span className="font-bold truncate block">{r.name}</span>
+                              <span className="text-[10px] text-[#7D7466] font-mono">{r.ownerName}</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Campaign Rules & Parameters Card */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-6 shadow-xl space-y-4">
+                <div className="border-b border-[#26201B] pb-3 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#D96B27]">Step 2: Campaign Rules</h4>
+                    <h3 className="text-sm font-bold text-white mt-0.5">Discounts &amp; Voucher Conditions</h3>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer bg-[#221C17] px-3 py-1.5 rounded-lg border border-[#302821]">
+                    <span className="text-xs font-bold text-white">Status:</span>
+                    <input
+                      type="checkbox"
+                      checked={campaignOfferConfig.active}
+                      onChange={(e) => setCampaignOfferConfig((prev) => ({ ...prev, active: e.target.checked }))}
+                      className="accent-emerald-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span
+                      className={`text-[10px] font-mono font-bold ${
+                        campaignOfferConfig.active ? "text-emerald-400" : "text-stone-500"
+                      }`}
+                    >
+                      {campaignOfferConfig.active ? "LIVE" : "PAUSED"}
+                    </span>
+                  </label>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* Promo Banner Headline */}
+                  <div>
+                    <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                      In-Menu Promo Banner Headline *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. FLAT 20% OFF TODAY · Auto-applied on orders above ₹399"
+                      value={campaignOfferConfig.bannerText}
+                      onChange={(e) => setCampaignOfferConfig((prev) => ({ ...prev, bannerText: e.target.value }))}
+                      className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Discount % and Min Order Value */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                        Order Discount (%) *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={90}
+                          required
+                          value={campaignOfferConfig.discountPercent}
+                          onChange={(e) =>
+                            setCampaignOfferConfig((prev) => ({ ...prev, discountPercent: Number(e.target.value) }))
+                          }
+                          className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg pl-3 pr-8 py-2 text-white font-mono focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C8275] font-mono">%</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                        Minimum Order Requirement (₹) *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8C8275] font-mono">₹</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={50}
+                          required
+                          value={campaignOfferConfig.minOrderValue}
+                          onChange={(e) =>
+                            setCampaignOfferConfig((prev) => ({ ...prev, minOrderValue: Number(e.target.value) }))
+                          }
+                          className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg pl-8 pr-3 py-2 text-white font-mono focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Scratch Card Reward Title */}
+                  <div>
+                    <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                      Bounce-Back Scratch Card Reward Title *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. ₹100 OFF on your next visit (Min order ₹499)"
+                      value={campaignOfferConfig.bounceBackReward}
+                      onChange={(e) => setCampaignOfferConfig((prev) => ({ ...prev, bounceBackReward: e.target.value }))}
+                      className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Voucher Prefix, Validity Duration in Days */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                        Voucher Code Prefix *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="REPEAT100"
+                        value={campaignOfferConfig.bounceBackCode}
+                        onChange={(e) =>
+                          setCampaignOfferConfig((prev) => ({
+                            ...prev,
+                            bounceBackCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+                          }))
+                        }
+                        className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white font-mono uppercase tracking-wider focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                        Validity Duration (Days) *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          required
+                          value={campaignOfferConfig.validityDays || 15}
+                          onChange={(e) =>
+                            setCampaignOfferConfig((prev) => ({ ...prev, validityDays: Number(e.target.value) || 15 }))
+                          }
+                          className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg pl-3 pr-14 py-2 text-white font-mono focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C8275] font-mono text-[10px]">
+                          Days
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Viral Friends Referral Discount */}
+                  <div>
+                    <label className="block text-[#A89F91] font-mono uppercase text-[10px] mb-1">
+                      Viral Friends Referral Discount Text
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="15% OFF for your friends"
+                      value={campaignOfferConfig.referralDiscount}
+                      onChange={(e) =>
+                        setCampaignOfferConfig((prev) => ({ ...prev, referralDiscount: e.target.value }))
+                      }
+                      className="w-full bg-[#12100E] border border-[#2D251F] focus:border-[#D96B27] rounded-lg px-3 py-2 text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-[#26201B] flex items-center justify-between">
+                  <span className="text-xs text-[#8C8275]">
+                    Targeting:{" "}
+                    <strong className="text-white">
+                      {campaignTargetMode === "all" ? `All ${restaurants.length} Outlets` : `${campaignSelectedRestoIds.length} Selected Outlets`}
+                    </strong>
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={isSavingCampaign}
+                    onClick={handleSaveCampaign}
+                    className="px-5 py-2.5 bg-gradient-to-r from-[#D96B27] to-[#B85418] hover:from-[#E3752F] text-white rounded-lg text-xs font-bold shadow-lg shadow-[#D96B27]/25 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <i className={`fa-solid ${isSavingCampaign ? "fa-circle-notch animate-spin" : "fa-paper-plane"}`} />
+                    <span>{isSavingCampaign ? "Launching Campaign..." : "Apply & Launch Campaign"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Omnichannel Live Previews (5 Cols) */}
+            <div className="xl:col-span-5 space-y-4 sticky top-6">
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8C8275] block px-1">
+                Real-Time Omnichannel Previews
+              </span>
+
+              {/* Preview 1: Live WhatsApp Dining Voucher */}
+              <div className="bg-[#121A16] border border-emerald-900/60 rounded-xl p-4 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-emerald-900/40">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                    <i className="fa-brands fa-whatsapp text-base" />
+                    <span>Customer WhatsApp Voucher Message</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-emerald-600 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/40">
+                    Live Template
+                  </span>
+                </div>
+
+                {/* WhatsApp Chat Bubble */}
+                <div className="bg-[#0B141A] p-3.5 rounded-xl border border-emerald-900/40 text-xs font-mono text-stone-200 leading-relaxed shadow-inner">
+                  <div className="text-emerald-400 font-bold mb-1">
+                    🎉 *Spice Route Bistro — VIP Dining Voucher* 🎟️
+                  </div>
+                  <div className="text-stone-500 text-[10px] mb-1">━━━━━━━━━━━━━━━━━━━━</div>
+                  <div>🎁 *Reward:* {campaignOfferConfig.bounceBackReward || "₹100 OFF on your next visit"}</div>
+                  <div>🔑 *Voucher Code:* {campaignOfferConfig.bounceBackCode || "REPEAT100"}-T04</div>
+                  <div>📍 *Table:* T04</div>
+                  <div>⏰ *Validity:* Next {campaignOfferConfig.validityDays || 15} Days on Dine-in &amp; Takeaway</div>
+                  <div className="text-stone-500 text-[10px] my-1">━━━━━━━━━━━━━━━━━━━━</div>
+                  <div className="text-stone-400 italic text-[11px]">
+                    _Present this WhatsApp voucher to your server or cashier on your next visit to redeem!_
+                  </div>
+                  <div className="text-right text-[10px] text-stone-500 mt-1">9:42 AM ✓✓</div>
+                </div>
+              </div>
+
+              {/* Preview 2: Google Pay Style Interactive Scratch Card */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-4 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between text-xs pb-2 border-b border-[#26201B]">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold">
+                    <span>🎁</span>
+                    <span>Interactive Scratch Card View</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-amber-500">Google Pay Style</span>
+                </div>
+
+                <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-100 border border-amber-300 text-center text-stone-900 shadow-md">
+                  <span className="text-2xl mb-1 block">🎉</span>
+                  <div className="font-extrabold text-sm text-amber-950 leading-tight">
+                    {campaignOfferConfig.bounceBackReward || "₹100 OFF on your next visit"}
+                  </div>
+                  <div className="text-[10px] text-stone-600 font-medium mt-0.5">
+                    Valid on orders above ₹{campaignOfferConfig.minOrderValue} on your next visit
+                  </div>
+
+                  <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 bg-white border border-dashed border-amber-600 rounded-lg shadow-2xs font-mono font-black text-xs text-amber-900">
+                    <span>{campaignOfferConfig.bounceBackCode || "REPEAT100"}-T04</span>
+                    <span className="text-[10px] text-amber-700 font-bold">📋 Copy</span>
+                  </div>
+
+                  <div className="mt-3 w-full py-2 bg-[#25D366] text-white rounded-lg font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                    <span>📲</span>
+                    <span>Save Voucher to WhatsApp</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview 3: Customer Menu Top Discount Banner */}
+              <div className="bg-[#181410] border border-[#26201A] rounded-xl p-4 shadow-xl space-y-2">
+                <div className="flex items-center justify-between text-xs pb-1">
+                  <span className="text-stone-400 font-bold text-xs">Customer In-Menu Top Banner</span>
+                  <span className="text-[10px] font-mono text-emerald-400">Auto Applied</span>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-200 text-xs text-center font-bold flex items-center justify-center gap-2">
+                  <span>⚡</span>
+                  <span className="truncate">{campaignOfferConfig.bannerText || "FLAT 20% OFF TODAY"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: GLOBAL BROADCAST */}
       {activeTab === "broadcast" && (
         <div className="space-y-6">
           {/* Live Terminal Preview Box */}

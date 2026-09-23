@@ -6,6 +6,7 @@ export type RestaurantOfferConfig = {
   bounceBackReward: string;
   bounceBackCode: string;
   referralDiscount: string;
+  validityDays?: number;
 };
 
 export const DEFAULT_OFFER_CONFIG: RestaurantOfferConfig = {
@@ -16,6 +17,7 @@ export const DEFAULT_OFFER_CONFIG: RestaurantOfferConfig = {
   bounceBackReward: "₹100 OFF on your next visit (Min order ₹499)",
   bounceBackCode: "REPEAT100",
   referralDiscount: "15% OFF for your friends",
+  validityDays: 15,
 };
 
 export type RestaurantThemeType = "amber" | "crimson" | "saffron" | "emerald" | "charcoal";
