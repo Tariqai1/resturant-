@@ -105,6 +105,28 @@ export default function SuperAdminPage() {
   // Tab navigation: Fleet Registry, Themes & Branding, Offers & Campaigns, Smart Upsell, Global Broadcast, Activity Log
   const [activeTab, setActiveTab] = useState<"fleet" | "theme" | "offers" | "upsell" | "broadcast" | "activity">("fleet");
 
+  // Dual Theme Engine: White Minimalist & Deep Carbon Black
+  const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("super_admin_theme");
+      if (saved === "dark" || saved === "light") {
+        setThemeMode(saved);
+      }
+    } catch {}
+  }, []);
+
+  const toggleTheme = () => {
+    const next = themeMode === "light" ? "dark" : "light";
+    setThemeMode(next);
+    try {
+      localStorage.setItem("super_admin_theme", next);
+    } catch {}
+  };
+
+  const isDark = themeMode === "dark";
+
   // Dedicated Themes & Branding Studio state
   const [selectedThemeRestoId, setSelectedThemeRestoId] = useState<string>("all");
   const [themeStudioConfig, setThemeStudioConfig] = useState<RestaurantBrandingConfig>({
@@ -1121,7 +1143,241 @@ export default function SuperAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#12100E] text-[#EDE8DF] font-sans antialiased selection:bg-[#D96B27] selection:text-white flex flex-col lg:flex-row">
+    <div
+      className={`min-h-screen font-sans antialiased flex flex-col lg:flex-row transition-colors duration-200 ${
+        isDark ? "super-admin-dark" : "super-admin-light"
+      }`}
+    >
+      {/* Dynamic Black & White Theme Engine */}
+      <style jsx global>{`
+        /* LIGHT MODE (Apple / Stripe Minimalist White) */
+        .super-admin-light {
+          --sa-bg: #f8f9fa;
+          --sa-sidebar: #ffffff;
+          --sa-card: #ffffff;
+          --sa-subtle: #f1f3f5;
+          --sa-border: #e2e8f0;
+          --sa-border-subtle: #edf2f7;
+          --sa-text: #0f172a;
+          --sa-muted: #64748b;
+          --sa-submuted: #94a3b8;
+          --sa-accent: #0f172a;
+          --sa-accent-text: #ffffff;
+          --sa-accent-hover: #1e293b;
+          --sa-header-bg: rgba(255, 255, 255, 0.9);
+        }
+
+        .super-admin-light,
+        .super-admin-light * {
+          scrollbar-color: #cbd5e1 #f8f9fa;
+        }
+
+        .super-admin-light.min-h-screen,
+        .super-admin-light .bg-\[\#12100E\] {
+          background-color: #f8f9fa !important;
+        }
+
+        .super-admin-light aside,
+        .super-admin-light .bg-\[\#14110E\] {
+          background-color: #ffffff !important;
+        }
+
+        .super-admin-light .bg-\[\#181410\],
+        .super-admin-light .bg-\[\#1A1612\],
+        .super-admin-light .bg-\[\#1F1A15\] {
+          background-color: #ffffff !important;
+        }
+
+        .super-admin-light .bg-\[\#1E1914\],
+        .super-admin-light .bg-\[\#221C17\],
+        .super-admin-light .bg-\[\#241E18\],
+        .super-admin-light .bg-\[\#2A231C\] {
+          background-color: #f1f3f5 !important;
+        }
+
+        .super-admin-light .bg-\[\#1B1612\] {
+          background-color: #f8fafc !important;
+        }
+
+        .super-admin-light .border-\[\#26201A\],
+        .super-admin-light .border-\[\#26201B\],
+        .super-admin-light .border-\[\#2A231D\],
+        .super-admin-light .border-\[\#2D251F\],
+        .super-admin-light .border-\[\#302821\],
+        .super-admin-light .border-\[\#3D332B\],
+        .super-admin-light .border-\[\#3A3129\],
+        .super-admin-light .border-\[\#221C17\],
+        .super-admin-light .border-\[\#2F2720\],
+        .super-admin-light .divide-\[\#241F1A\] > :not([hidden]) ~ :not([hidden]),
+        .super-admin-light .divide-\[\#26201A\] > :not([hidden]) ~ :not([hidden]) {
+          border-color: #e2e8f0 !important;
+        }
+
+        .super-admin-light,
+        .super-admin-light .text-\[\#EDE8DF\],
+        .super-admin-light .text-white {
+          color: #0f172a !important;
+        }
+
+        .super-admin-light .text-\[\#8C8275\],
+        .super-admin-light .text-\[\#A89F91\],
+        .super-admin-light .text-\[\#7D7466\],
+        .super-admin-light .text-\[\#6E6457\],
+        .super-admin-light .text-\[\#D8D0C3\] {
+          color: #64748b !important;
+        }
+
+        .super-admin-light .bg-\[\#D96B27\] {
+          background-color: #0f172a !important;
+          color: #ffffff !important;
+        }
+
+        .super-admin-light .from-\[\#D96B27\] {
+          --tw-gradient-from: #0f172a var(--tw-gradient-from-position) !important;
+        }
+
+        .super-admin-light .to-\[\#B85418\],
+        .super-admin-light .to-\[\#B35218\] {
+          --tw-gradient-to: #1e293b var(--tw-gradient-to-position) !important;
+        }
+
+        .super-admin-light .text-\[\#D96B27\],
+        .super-admin-light .text-\[\#F38B47\],
+        .super-admin-light .text-\[\#FF8A42\] {
+          color: #0f172a !important;
+        }
+
+        .super-admin-light .border-\[\#D96B27\],
+        .super-admin-light .border-\[\#FF8A42\]\/30 {
+          border-color: #0f172a !important;
+        }
+
+        .super-admin-light .shadow-\[\#D96B27\]\/20,
+        .super-admin-light .shadow-\[\#D96B27\]\/25 {
+          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+        }
+
+        .super-admin-light .hover\:bg-\[\#1E1914\]:hover,
+        .super-admin-light .hover\:bg-\[\#1E1914\]\/60:hover,
+        .super-admin-light .hover\:bg-\[\#28211B\]:hover,
+        .super-admin-light .hover\:bg-\[\#2A231C\]:hover {
+          background-color: #f1f5f9 !important;
+        }
+
+        /* DARK MODE (Linear / Vercel Deep Carbon Black) */
+        .super-admin-dark {
+          --sa-bg: #09090b;
+          --sa-sidebar: #0d0d10;
+          --sa-card: #131316;
+          --sa-subtle: #18181b;
+          --sa-border: #27272a;
+          --sa-border-subtle: #1f1f23;
+          --sa-text: #fafafa;
+          --sa-muted: #a1a1aa;
+          --sa-submuted: #71717a;
+          --sa-accent: #ffffff;
+          --sa-accent-text: #09090b;
+          --sa-accent-hover: #e4e4e7;
+          --sa-header-bg: rgba(9, 9, 11, 0.9);
+        }
+
+        .super-admin-dark,
+        .super-admin-dark * {
+          scrollbar-color: #3f3f46 #09090b;
+        }
+
+        .super-admin-dark.min-h-screen,
+        .super-admin-dark .bg-\[\#12100E\] {
+          background-color: #09090b !important;
+        }
+
+        .super-admin-dark aside,
+        .super-admin-dark .bg-\[\#14110E\] {
+          background-color: #0d0d10 !important;
+        }
+
+        .super-admin-dark .bg-\[\#181410\],
+        .super-admin-dark .bg-\[\#1A1612\],
+        .super-admin-dark .bg-\[\#1F1A15\] {
+          background-color: #131316 !important;
+        }
+
+        .super-admin-dark .bg-\[\#1E1914\],
+        .super-admin-dark .bg-\[\#221C17\],
+        .super-admin-dark .bg-\[\#241E18\],
+        .super-admin-dark .bg-\[\#2A231C\] {
+          background-color: #18181b !important;
+        }
+
+        .super-admin-dark .bg-\[\#1B1612\] {
+          background-color: #141417 !important;
+        }
+
+        .super-admin-dark .border-\[\#26201A\],
+        .super-admin-dark .border-\[\#26201B\],
+        .super-admin-dark .border-\[\#2A231D\],
+        .super-admin-dark .border-\[\#2D251F\],
+        .super-admin-dark .border-\[\#302821\],
+        .super-admin-dark .border-\[\#3D332B\],
+        .super-admin-dark .border-\[\#3A3129\],
+        .super-admin-dark .border-\[\#221C17\],
+        .super-admin-dark .border-\[\#2F2720\],
+        .super-admin-dark .divide-\[\#241F1A\] > :not([hidden]) ~ :not([hidden]),
+        .super-admin-dark .divide-\[\#26201A\] > :not([hidden]) ~ :not([hidden]) {
+          border-color: #27272a !important;
+        }
+
+        .super-admin-dark,
+        .super-admin-dark .text-\[\#EDE8DF\],
+        .super-admin-dark .text-white {
+          color: #fafafa !important;
+        }
+
+        .super-admin-dark .text-\[\#8C8275\],
+        .super-admin-dark .text-\[\#A89F91\],
+        .super-admin-dark .text-\[\#7D7466\],
+        .super-admin-dark .text-\[\#6E6457\],
+        .super-admin-dark .text-\[\#D8D0C3\] {
+          color: #a1a1aa !important;
+        }
+
+        .super-admin-dark .bg-\[\#D96B27\] {
+          background-color: #ffffff !important;
+          color: #09090b !important;
+        }
+
+        .super-admin-dark .from-\[\#D96B27\] {
+          --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+        }
+
+        .super-admin-dark .to-\[\#B85418\],
+        .super-admin-dark .to-\[\#B35218\] {
+          --tw-gradient-to: #e4e4e7 var(--tw-gradient-to-position) !important;
+        }
+
+        .super-admin-dark .text-\[\#D96B27\],
+        .super-admin-dark .text-\[\#F38B47\],
+        .super-admin-dark .text-\[\#FF8A42\] {
+          color: #ffffff !important;
+        }
+
+        .super-admin-dark .border-\[\#D96B27\],
+        .super-admin-dark .border-\[\#FF8A42\]\/30 {
+          border-color: #ffffff !important;
+        }
+
+        .super-admin-dark .shadow-\[\#D96B27\]\/20,
+        .super-admin-dark .shadow-\[\#D96B27\]\/25 {
+          box-shadow: 0 4px 14px rgba(255, 255, 255, 0.08) !important;
+        }
+
+        .super-admin-dark .hover\:bg-\[\#1E1914\]:hover,
+        .super-admin-dark .hover\:bg-\[\#1E1914\]\/60:hover,
+        .super-admin-dark .hover\:bg-\[\#28211B\]:hover,
+        .super-admin-dark .hover\:bg-\[\#2A231C\]:hover {
+          background-color: #1f1f24 !important;
+        }
+      `}</style>
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#1F1A15] border border-[#D96B27] text-white px-5 py-3.5 rounded-lg shadow-2xl animate-fade-in text-sm font-medium">
@@ -1363,24 +1619,39 @@ export default function SuperAdminPage() {
             </div>
           </div>
 
-          {/* Quick Exit Links */}
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="flex-1 flex items-center justify-center gap-1.5 bg-[#1E1914] hover:bg-[#28211B] text-[#D8D0C3] border border-[#302821] py-2 rounded-lg text-xs font-semibold transition-colors"
-            >
-              <i className="fa-solid fa-arrow-left text-[#8C8275] text-xs" />
-              <span>Floor POS</span>
-            </Link>
-
+          {/* Dual Theme Switcher & Quick Exit Links */}
+          <div className="space-y-2">
             <button
               type="button"
-              onClick={handleSuperAdminSignOut}
-              className="p-2 bg-[#1E1914] hover:bg-red-950/60 hover:text-red-300 hover:border-red-800 text-[#8C8275] border border-[#302821] rounded-lg text-xs transition-colors cursor-pointer"
-              title="Sign Out of Super Admin"
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-semibold cursor-pointer transition-all bg-[#1E1914] hover:bg-[#28211B] text-white border-[#302821]"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             >
-              <i className="fa-solid fa-arrow-right-from-bracket" />
+              <div className="flex items-center gap-2">
+                <span>{isDark ? "☀️" : "🌙"}</span>
+                <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+              </div>
+              <span className="text-[10px] font-mono opacity-60 uppercase">Switch</span>
             </button>
+
+            <div className="flex items-center gap-2">
+              <Link
+                href="/"
+                className="flex-1 flex items-center justify-center gap-1.5 bg-[#1E1914] hover:bg-[#28211B] text-[#D8D0C3] border border-[#302821] py-2 rounded-lg text-xs font-semibold transition-colors"
+              >
+                <i className="fa-solid fa-arrow-left text-[#8C8275] text-xs" />
+                <span>Floor POS</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={handleSuperAdminSignOut}
+                className="p-2 bg-[#1E1914] hover:bg-red-950/60 hover:text-red-300 hover:border-red-800 text-[#8C8275] border border-[#302821] rounded-lg text-xs transition-colors cursor-pointer"
+                title="Sign Out of Super Admin"
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -1407,6 +1678,14 @@ export default function SuperAdminPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="p-2 bg-[#221C17] border border-[#302821] rounded-lg text-white text-xs cursor-pointer"
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            <span>{isDark ? "☀️" : "🌙"}</span>
+          </button>
           <button
             type="button"
             onClick={() => setIsSpotlightOpen(true)}
@@ -1671,112 +1950,55 @@ export default function SuperAdminPage() {
           </div>
         </section>
 
-        {/* Platform Control Tabs: Fleet Registry, Global Broadcast, Activity Audit Log */}
-        <section className="flex flex-wrap items-center gap-2 border-b border-[#26201B] pb-3">
-          <button
-            onClick={() => setActiveTab("fleet")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "fleet"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-store" />
-            <span>Tenant Fleet Registry</span>
-            <span
-              className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
-                activeTab === "fleet" ? "bg-black/25 text-white" : "bg-[#241E18] text-[#8C8275]"
-              }`}
+        {/* Modern Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#26201B]">
+          <div>
+            <div className="flex items-center gap-2 text-[11px] font-mono text-[#8C8275] uppercase tracking-wider mb-0.5">
+              <span>Console</span>
+              <span>/</span>
+              <span className="font-bold text-white">
+                {activeTab === "fleet" && "Tenant Fleet Registry"}
+                {activeTab === "theme" && "Themes & Branding Studio"}
+                {activeTab === "offers" && "Offers & Campaigns"}
+                {activeTab === "upsell" && "Smart Upsell AI"}
+                {activeTab === "broadcast" && "Global Broadcast"}
+                {activeTab === "activity" && "Activity & Audit Logs"}
+              </span>
+            </div>
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              {activeTab === "fleet" && "Restaurant Fleet Registry"}
+              {activeTab === "theme" && "Themes & Visual Branding Studio"}
+              {activeTab === "offers" && "Offers & Campaign Manager"}
+              {activeTab === "upsell" && "Smart Upsell & Pairing Studio"}
+              {activeTab === "broadcast" && "Global Platform Broadcast"}
+              {activeTab === "activity" && "Audit Logs & Activity Timeline"}
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {/* Quick Spotlight Shortcut */}
+            <button
+              type="button"
+              onClick={() => setIsSpotlightOpen(true)}
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-[#181410] hover:bg-[#221C17] text-[#A89F91] hover:text-white border border-[#26201A] rounded-xl text-xs font-mono transition-all cursor-pointer"
             >
-              {restaurants.length}
-            </span>
-          </button>
+              <i className="fa-solid fa-magnifying-glass text-[#D96B27]" />
+              <span>Search Outlets</span>
+              <kbd className="bg-[#12100E] border border-[#2D251F] px-1.5 py-0.5 rounded text-[9px] text-[#8C8275]">Ctrl K</kbd>
+            </button>
 
-          <button
-            onClick={() => setActiveTab("theme")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "theme"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-palette" />
-            <span>Themes &amp; Branding</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-purple-950/60 text-purple-300 border border-purple-800/50">
-              5 Styles
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("offers")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "offers"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-tags" />
-            <span>Offers &amp; Campaigns</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
-              Builder
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("upsell")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "upsell"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-wand-magic-sparkles" />
-            <span>Smart Upsell AI</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-950/60 text-amber-300 border border-amber-800/50">
-              Pairing
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("broadcast")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "broadcast"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-bullhorn" />
-            <span>Global Broadcast</span>
-            <span
-              className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
-                broadcastForm.active
-                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse"
-                  : "bg-stone-800 text-stone-400"
-              }`}
+            {/* Mode Switcher */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#181410] hover:bg-[#221C17] text-white border border-[#26201A] rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer active:scale-98"
+              title={isDark ? "Switch to Clean White Mode" : "Switch to Deep Black Mode"}
             >
-              {broadcastForm.active ? "LIVE" : "OFF"}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("activity")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "activity"
-                ? "bg-[#D96B27] text-white shadow-lg shadow-[#D96B27]/25 border border-[#FF8A42]/30"
-                : "bg-[#181410] text-[#A89F91] hover:text-white border border-[#26201A]"
-            }`}
-          >
-            <i className="fa-solid fa-timeline" />
-            <span>Activity &amp; Audit Log</span>
-            <span
-              className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
-                activeTab === "activity" ? "bg-black/25 text-white" : "bg-[#241E18] text-[#8C8275]"
-              }`}
-            >
-              {activities.length}
-            </span>
-          </button>
-        </section>
+              <span>{isDark ? "☀️" : "🌙"}</span>
+              <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+            </button>
+          </div>
+        </div>
 
         {/* TAB 1: FLEET REGISTRY */}
         {activeTab === "fleet" && (
