@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -44,20 +44,42 @@ export default function TerminalLoginPage() {
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [isRecoverySubmitting, setIsRecoverySubmitting] = useState(false);
 
+  // Stable refs to eliminate re-render infinite loops
+  const selectedStaffRef = useRef<StaffProfile | null>(null);
+  const restaurantIdRef = useRef<string>("");
+  const isSubmittingRef = useRef<boolean>(false);
+  const hasFetchedRosterRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    selectedStaffRef.current = selectedStaff;
+  }, [selectedStaff]);
+
+  useEffect(() => {
+    restaurantIdRef.current = restaurantId;
+  }, [restaurantId]);
+
+  useEffect(() => {
+    isSubmittingRef.current = isSubmitting;
+  }, [isSubmitting]);
+
   const handlePinSubmit = useCallback(
     async (pinToVerify: string, overrideStaffId?: string, overrideRestoId?: string) => {
-      if (pinToVerify.length !== 4 || isSubmitting) return;
+      if (pinToVerify.length !== 4 || isSubmittingRef.current) return;
 
       setIsSubmitting(true);
+      isSubmittingRef.current = true;
       setErrorMessage("");
 
       try {
+        const staffIdToUse = overrideStaffId || selectedStaffRef.current?.id;
+        const restoIdToUse = overrideRestoId || restaurantIdRef.current;
+
         const res = await fetch("/api/auth/pin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            staffId: overrideStaffId || selectedStaff?.id,
-            restaurantId: overrideRestoId || restaurantId,
+            staffId: staffIdToUse,
+            restaurantId: restoIdToUse,
             pin: pinToVerify,
           }),
         });
@@ -79,12 +101,16 @@ export default function TerminalLoginPage() {
           setPin("");
         }, 400);
         setIsSubmitting(false);
+        isSubmittingRef.current = false;
       }
     },
-    [isSubmitting, selectedStaff, restaurantId, router]
+    [router]
   );
 
   useEffect(() => {
+    if (hasFetchedRosterRef.current) return;
+    hasFetchedRosterRef.current = true;
+
     let isMounted = true;
     const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
     const restoParam = searchParams.get("resto") || "";
@@ -98,7 +124,10 @@ export default function TerminalLoginPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!isMounted || !data) return;
-        if (data.restaurantId) setRestaurantId(data.restaurantId);
+        if (data.restaurantId) {
+          setRestaurantId(data.restaurantId);
+          restaurantIdRef.current = data.restaurantId;
+        }
         if (data.restaurantName) setRestaurantName(data.restaurantName);
         if (data.staff?.length > 0) {
           setStaffList(data.staff);
@@ -112,6 +141,7 @@ export default function TerminalLoginPage() {
             if (found) targetStaff = found;
           }
           setSelectedStaff(targetStaff);
+          selectedStaffRef.current = targetStaff;
 
           // 1-Tap Magic auto-login if valid 4-digit pin in query
           if (pinParam && pinParam.length === 4) {
@@ -171,7 +201,7 @@ export default function TerminalLoginPage() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [showEmailRecovery, pin, isSubmitting, handlePinSubmit]);
 
   async function handleRecoverySubmit(e: React.FormEvent) {
     e.preventDefault();
