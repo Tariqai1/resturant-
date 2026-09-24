@@ -14,6 +14,22 @@
       "action": "STATUS_CHANGE",
       "actorEmail": "tariqfsd9@gmail.com",
       "details": "Batch updated 6 restaurants: Branding/Theme",
+      "id": "act-muftkmv2-3dg7",
+      "createdAt": "2026-09-24T17:42:24.446Z"
+    },
+    {
+      "action": "IMPERSONATE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "d7762112-5cd5-47db-941d-b212860796ca",
+      "targetName": "Shadab Resto",
+      "details": "Started Ghost Mode Impersonation of \"Shadab Resto\" (shadab@gmail.com)",
+      "id": "act-muften0t-qxri",
+      "createdAt": "2026-09-24T17:37:44.717Z"
+    },
+    {
+      "action": "STATUS_CHANGE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "details": "Batch updated 6 restaurants: Branding/Theme",
       "id": "act-muft6i24-48ax",
       "createdAt": "2026-09-24T17:31:25.036Z"
     },
@@ -196,41 +212,41 @@
     }
   ],
   "restaurantThemes": {
-    "c816369c-fd3b-4034-bba2-7c766584de4e": "amber",
-    "d7762112-5cd5-47db-941d-b212860796ca": "amber",
-    "a0bc7220-bd74-4aa1-ab75-a5b59958ccf3": "amber",
-    "9a8d585c-b313-4383-b494-6c306c93318e": "amber",
-    "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5": "amber",
-    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": "amber"
+    "c816369c-fd3b-4034-bba2-7c766584de4e": "emerald",
+    "d7762112-5cd5-47db-941d-b212860796ca": "emerald",
+    "a0bc7220-bd74-4aa1-ab75-a5b59958ccf3": "emerald",
+    "9a8d585c-b313-4383-b494-6c306c93318e": "emerald",
+    "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5": "emerald",
+    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": "emerald"
   },
   "restaurantBrandings": {
     "d7762112-5cd5-47db-941d-b212860796ca": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     },
     "a0bc7220-bd74-4aa1-ab75-a5b59958ccf3": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     },
     "9a8d585c-b313-4383-b494-6c306c93318e": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     },
     "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     },
     "c816369c-fd3b-4034-bba2-7c766584de4e": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     },
     "217c033a-1a3e-4d7b-a095-55ee98c94a3b": {
-      "theme": "amber",
+      "theme": "emerald",
       "logoUrl": "",
       "tagline": "Instant Contactless Dining Experience"
     }
