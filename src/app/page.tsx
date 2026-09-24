@@ -1678,7 +1678,7 @@ export default function Home() {
             onClick={() => setSelectedTable(null)}
           >
             <div
-              className="w-full md:max-w-md max-h-[92vh] md:max-h-full h-auto md:h-full p-4 sm:p-6 flex flex-col justify-between overflow-y-auto rounded-t-3xl md:rounded-none shadow-2xl"
+              className="w-full md:max-w-md max-h-[95vh] md:max-h-full h-auto md:h-full p-3.5 sm:p-4 flex flex-col justify-between overflow-y-auto rounded-t-3xl md:rounded-none shadow-2xl"
               style={{
                 backgroundColor: "var(--paper)",
                 borderLeft: "1px solid var(--hairline)",
@@ -1687,25 +1687,25 @@ export default function Home() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Drag handle for mobile */}
-              <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-2.5 md:hidden shrink-0" />
+              <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto mb-1.5 md:hidden shrink-0" />
               <div>
                 {/* Drawer Header */}
-                <div className="flex justify-between items-start pb-4 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
+                <div className="flex justify-between items-start pb-2 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
                   <div>
-                    <span className="text-xs font-semibold" style={{ color: "var(--rust)" }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--rust)" }}>
                       Active Table Slip
                     </span>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-heading text-3xl font-bold" style={{ color: "var(--ink)" }}>
+                      <h2 className="font-heading text-2xl font-bold leading-tight" style={{ color: "var(--ink)" }}>
                         Table {selectedTable}
                       </h2>
                       {activeOrder?.table_session_id?.startsWith("joined:") && (
-                        <span className="text-xs px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          🔗 Group Table: +{activeOrder.table_session_id.replace("joined:", "").split(",").filter((n: string) => n.trim() !== selectedTable).join(" + ")}
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                          🔗 Group: +{activeOrder.table_session_id.replace("joined:", "").split(",").filter((n: string) => n.trim() !== selectedTable).join(" + ")}
                         </span>
                       )}
                       {activeOrder?.table_session_id?.startsWith("merged_into:") && (
-                        <span className="text-xs px-2 py-0.5 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300">
                           🔗 Joined into Table {activeOrder.table_session_id.replace("merged_into:", "").trim()}
                         </span>
                       )}
@@ -1714,75 +1714,78 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setSelectedTable(null)}
-                    className="p-1 text-sm font-bold cursor-pointer"
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-black/5 transition-colors"
                     style={{ color: "var(--ink-soft)" }}
                   >
                     ✕
                   </button>
                 </div>
 
-                {/* Session Meta */}
-                <div className="py-3 my-2 text-xs space-y-1" style={{ color: "var(--ink-soft)" }}>
-                  <div className="flex justify-between">
-                    <span>Session status</span>
+                {/* Ultra-compact Session Meta pill bar */}
+                <div className="flex items-center justify-between py-1.5 px-2.5 my-2 rounded-lg text-[11px] border" style={{ backgroundColor: "var(--paper-dim)", borderColor: "var(--hairline)" }}>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: activeOrder ? "var(--rust)" : "var(--sage)" }} />
                     <span className="font-semibold" style={{ color: activeOrder ? "var(--rust)" : "var(--sage)" }}>
                       {activeOrder ? `Active (${elapsed}m)` : "Ready for seating"}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Server on floor</span>
-                    <span className="font-medium" style={{ color: "var(--ink)" }}>
-                      {currentUser?.name || "Shift staff"}
-                    </span>
+                  <div className="text-[10px]" style={{ color: "var(--ink-soft)" }}>
+                    Server: <strong className="font-bold" style={{ color: "var(--ink)" }}>{currentUser?.name || "Floor staff"}</strong>
                   </div>
                 </div>
 
                 {/* Ordered Items with Permissions check */}
                 {chitItems.length > 0 ? (
-                  <div className="pt-2">
-                    <div className="text-xs font-semibold pb-1 mb-2 border-b border-dashed" style={{ borderColor: "var(--hairline)", color: "var(--ink-soft)" }}>
-                      Ordered items ({chitItems.length})
+                  <div className="pt-1">
+                    <div className="text-[11px] font-semibold pb-1 mb-1.5 border-b border-dashed flex items-center justify-between" style={{ borderColor: "var(--hairline)", color: "var(--ink-soft)" }}>
+                      <span>Ordered items ({chitItems.length})</span>
+                      <span className="text-[10px] opacity-75">Unit Rate / Line Total</span>
                     </div>
 
-                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <div className="space-y-1 max-h-[40vh] sm:max-h-[46vh] overflow-y-auto pr-1">
                       {chitItems.map((item) => {
                         const rate = Number(item.unit_price) || Number(item.menu_items?.price) || 0;
                         return (
                           <div
                             key={item.id}
-                            className="p-2 rounded flex items-center justify-between text-xs"
+                            className="py-1 px-2 rounded flex items-center justify-between text-xs hover:bg-stone-50 transition-colors"
                             style={{ backgroundColor: "var(--paper-dim)", border: "1px solid var(--hairline)" }}
                           >
-                            <div>
-                              <div className="font-semibold" style={{ color: "var(--ink)" }}>
-                                {item.menu_items?.name || "Dish"}
-                              </div>
-                              <div className="font-receipt text-[11px]" style={{ color: "var(--ink-soft)" }}>
-                                ₹{rate} each
+                            <div className="flex items-center gap-2 min-w-0 pr-2">
+                              <span className="font-bold text-[10px] px-1.5 py-0.2 rounded bg-stone-200/80 text-stone-800 shrink-0 font-mono">
+                                {item.qty}×
+                              </span>
+                              <div className="min-w-0 flex items-baseline gap-1.5">
+                                <span className="font-semibold text-xs truncate max-w-[140px] sm:max-w-[200px]" style={{ color: "var(--ink)" }}>
+                                  {item.menu_items?.name || "Dish"}
+                                </span>
+                                <span className="text-[10px] font-receipt opacity-75 shrink-0" style={{ color: "var(--ink-soft)" }}>
+                                  @₹{rate}
+                                </span>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                              <span className="font-receipt font-bold" style={{ color: "var(--ink)" }}>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="font-receipt font-bold text-xs" style={{ color: "var(--ink)" }}>
                                 ₹{item.qty * rate}
                               </span>
 
                               {/* Permission check: Edit order allowed? */}
                               {canEditOrders ? (
-                                <div className="flex items-center gap-1 bg-white px-1 py-0.5 rounded border" style={{ borderColor: "var(--hairline)" }}>
+                                <div className="flex items-center gap-0.5 bg-white px-1 py-0.5 rounded border" style={{ borderColor: "var(--hairline)" }}>
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItemQty(item.id, item.qty - 1)}
-                                    className="w-5 h-5 flex items-center justify-center font-bold text-xs hover:bg-stone-100 rounded cursor-pointer"
+                                    className="w-4 h-4 flex items-center justify-center font-bold text-[11px] hover:bg-stone-100 rounded cursor-pointer"
                                     title="Decrease quantity"
                                   >
                                     -
                                   </button>
-                                  <span className="font-receipt font-bold px-1 text-xs">{item.qty}</span>
+                                  <span className="font-receipt font-bold px-1 text-[11px]">{item.qty}</span>
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItemQty(item.id, item.qty + 1)}
-                                    className="w-5 h-5 flex items-center justify-center font-bold text-xs hover:bg-stone-100 rounded cursor-pointer"
+                                    className="w-4 h-4 flex items-center justify-center font-bold text-[11px] hover:bg-stone-100 rounded cursor-pointer"
                                     title="Increase quantity"
                                   >
                                     +
@@ -1790,7 +1793,7 @@ export default function Home() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveItem(item.id)}
-                                    className="w-5 h-5 flex items-center justify-center text-xs text-red-600 hover:bg-red-50 rounded ml-1 cursor-pointer"
+                                    className="w-4 h-4 flex items-center justify-center text-[10px] text-red-600 hover:bg-red-50 rounded ml-0.5 cursor-pointer"
                                     title="Remove dish"
                                   >
                                     ✕
@@ -1798,11 +1801,11 @@ export default function Home() {
                                 </div>
                               ) : (
                                 <span
-                                  className="text-[10px] px-1.5 py-0.5 rounded"
+                                  className="text-[9px] px-1 py-0.2 rounded font-mono font-medium"
                                   style={{ backgroundColor: "var(--paper)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
                                   title="Edit locked by restaurant owner"
                                 >
-                                  {item.qty}× (locked)
+                                  locked
                                 </span>
                               )}
                             </div>
@@ -1812,31 +1815,31 @@ export default function Home() {
                     </div>
 
                     {/* Tax & Grand Total Breakdown */}
-                    <div className="mt-4 pt-3 border-t border-dashed space-y-1 text-xs font-receipt" style={{ borderColor: "var(--hairline)" }}>
-                      <div className="flex justify-between" style={{ color: "var(--ink-soft)" }}>
+                    <div className="mt-2 pt-2 border-t border-dashed space-y-0.5 text-xs font-receipt" style={{ borderColor: "var(--hairline)" }}>
+                      <div className="flex justify-between text-[11px]" style={{ color: "var(--ink-soft)" }}>
                         <span>Subtotal</span>
                         <span>₹{subtotal.toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="flex justify-between" style={{ color: "var(--ink-soft)" }}>
+                      <div className="flex justify-between text-[10px]" style={{ color: "var(--ink-soft)" }}>
                         <span>CGST (2.5%)</span>
                         <span>₹{cgst.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between" style={{ color: "var(--ink-soft)" }}>
+                      <div className="flex justify-between text-[10px]" style={{ color: "var(--ink-soft)" }}>
                         <span>SGST (2.5%)</span>
                         <span>₹{sgst.toFixed(2)}</span>
                       </div>
-                      <div className="pt-2 flex justify-between items-baseline border-t border-stone-300">
-                        <span className="font-heading text-sm font-bold" style={{ color: "var(--ink)" }}>
+                      <div className="pt-1.5 flex justify-between items-baseline border-t border-stone-300">
+                        <span className="font-heading text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink)" }}>
                           Total payable
                         </span>
-                        <span className="font-heading text-2xl font-bold" style={{ color: "var(--rust)" }}>
+                        <span className="font-heading text-xl font-bold" style={{ color: "var(--rust)" }}>
                           ₹{grandTotal.toLocaleString("en-IN")}
                         </span>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="py-12 text-center" style={{ color: "var(--ink-soft)" }}>
+                  <div className="py-8 text-center" style={{ color: "var(--ink-soft)" }}>
                     <p className="text-xs">No active orders on Table {selectedTable}</p>
                     <button
                       type="button"
@@ -1844,7 +1847,7 @@ export default function Home() {
                         setOrderTable(selectedTable);
                         setIsNewOrderOpen(true);
                       }}
-                      className="mt-3 px-4 py-2 text-xs font-bold rounded cursor-pointer"
+                      className="mt-2.5 px-3 py-1.5 text-xs font-bold rounded cursor-pointer"
                       style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)", borderRadius: "4px" }}
                     >
                       + Create order for Table {selectedTable}
@@ -1854,7 +1857,7 @@ export default function Home() {
               </div>
 
               {/* Action Buttons (Sticky at bottom on mobile) */}
-              <div className="pt-3 pb-safe border-t border-dashed space-y-2 shrink-0 bg-[var(--paper)] sticky bottom-0" style={{ borderColor: "var(--hairline)" }}>
+              <div className="pt-2 pb-safe border-t border-dashed space-y-1.5 shrink-0 bg-[var(--paper)] sticky bottom-0" style={{ borderColor: "var(--hairline)" }}>
                 {chitItems.length > 0 && (
                   <>
                     {/* Add Dishes Button (guarded) */}
@@ -1865,7 +1868,7 @@ export default function Home() {
                           setOrderTable(selectedTable);
                           setIsNewOrderOpen(true);
                         }}
-                        className="w-full py-2 text-xs font-semibold rounded cursor-pointer"
+                        className="w-full py-1.5 text-xs font-semibold rounded cursor-pointer"
                         style={{
                           backgroundColor: "var(--paper-dim)",
                           color: "var(--rust)",
@@ -1876,31 +1879,29 @@ export default function Home() {
                       </button>
                     ) : (
                       <div
-                        className="w-full py-2 text-center text-xs rounded"
+                        className="w-full py-0.5 text-center text-[10px] rounded italic"
                         style={{
-                          backgroundColor: "var(--paper-dim)",
                           color: "var(--ink-soft)",
-                          border: "1px solid var(--hairline)",
                         }}
                       >
-                        Add dishes locked (owner permission required)
+                        🔒 Add dishes locked (owner permission required)
                       </div>
                     )}
 
                     {/* Waiter Approval Callout if Table has pending verification */}
                     {pendingApprovals.filter(b => b.tableNumber === selectedTable).map(batch => (
-                      <div key={batch.id} className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 space-y-2 shadow-xs">
+                      <div key={batch.id} className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 space-y-1.5 shadow-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                            <span className="text-base">👨‍💼</span>
+                            <span>👨‍💼</span>
                             <span>Awaiting Captain Approval</span>
                           </span>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900 border border-amber-300">
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 border border-amber-300">
                             ₹{batch.totalAmount}
                           </span>
                         </div>
-                        <p className="text-[11px] text-amber-800 leading-snug">
-                          {batch.totalItems} guest item(s) are held in queue. Verify at table before firing to the kitchen.
+                        <p className="text-[10px] text-amber-800 leading-tight">
+                          {batch.totalItems} guest item(s) in queue. Verify at table before firing to kitchen.
                         </p>
                         <button
                           type="button"
@@ -1908,7 +1909,7 @@ export default function Home() {
                             setSelectedApprovalBatch(batch);
                             setIsApprovalModalOpen(true);
                           }}
-                          className="w-full py-2 px-3 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-xs active:scale-95 transition-all text-center"
+                          className="w-full py-1.5 px-3 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer shadow-xs active:scale-95 transition-all text-center"
                         >
                           Verify &amp; Approve Order Slip →
                         </button>
@@ -1916,14 +1917,14 @@ export default function Home() {
                     ))}
 
                     {/* Table Joining & Moving Controls */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           setIsMergeOpen((prev) => !prev);
                           setIsTransferOpen(false);
                         }}
-                        className="py-2 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
+                        className="py-1.5 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
                         style={{
                           backgroundColor: isMergeOpen ? "#FEF3C7" : "var(--paper-dim)",
                           borderColor: isMergeOpen ? "#D97706" : "var(--hairline)",
@@ -1941,7 +1942,7 @@ export default function Home() {
                           setIsTransferOpen((prev) => !prev);
                           setIsMergeOpen(false);
                         }}
-                        className="py-2 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
+                        className="py-1.5 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
                         style={{
                           backgroundColor: isTransferOpen ? "#DBEAFE" : "var(--paper-dim)",
                           borderColor: isTransferOpen ? "#2563EB" : "var(--hairline)",
@@ -1956,21 +1957,21 @@ export default function Home() {
 
                     {/* Inline Merge / Join Drawer */}
                     {isMergeOpen && (
-                      <div className="p-3 rounded-xl border bg-amber-50/70 space-y-2 border-amber-200 shadow-xs">
+                      <div className="p-2.5 rounded-xl border bg-amber-50/70 space-y-1.5 border-amber-200 shadow-xs">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-bold text-amber-950 flex items-center gap-1">
                             <span>🔗</span>
                             <span>Join Another Table with Table {selectedTable}</span>
                           </span>
                         </div>
-                        <p className="text-[11px] text-amber-800 leading-snug">
-                          Select the table to join (e.g. for big groups/parties). Both tables will be combined into a single group bill.
+                        <p className="text-[10px] text-amber-800 leading-tight">
+                          Both tables will be combined into a single group bill.
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <select
                             value={mergeSourceTable}
                             onChange={(e) => setMergeSourceTable(e.target.value)}
-                            className="flex-1 py-1.5 px-2 text-xs rounded-lg border bg-white font-semibold"
+                            className="flex-1 py-1 px-2 text-xs rounded-lg border bg-white font-semibold"
                             style={{ borderColor: "var(--hairline)" }}
                           >
                             <option value="">Select table to join...</option>
@@ -1986,9 +1987,9 @@ export default function Home() {
                             type="button"
                             disabled={!mergeSourceTable || isMerging}
                             onClick={handleMergeTables}
-                            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50 cursor-pointer shadow-xs whitespace-nowrap"
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg text-white bg-amber-700 hover:bg-amber-800 disabled:opacity-50 cursor-pointer shadow-xs whitespace-nowrap"
                           >
-                            {isMerging ? "Joining..." : "Join Tables"}
+                            {isMerging ? "Joining..." : "Join"}
                           </button>
                         </div>
                       </div>
@@ -1996,21 +1997,21 @@ export default function Home() {
 
                     {/* Inline Shift / Transfer Drawer */}
                     {isTransferOpen && (
-                      <div className="p-3 rounded-xl border bg-blue-50/70 space-y-2 border-blue-200 shadow-xs">
+                      <div className="p-2.5 rounded-xl border bg-blue-50/70 space-y-1.5 border-blue-200 shadow-xs">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
                             <span>🔄</span>
                             <span>Shift Table {selectedTable} to New Table</span>
                           </span>
                         </div>
-                        <p className="text-[11px] text-blue-800 leading-snug">
-                          Move this customer party and active ticket to another table. Table {selectedTable} will be marked available.
+                        <p className="text-[10px] text-blue-800 leading-tight">
+                          Move party and active ticket to another table.
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <select
                             value={transferTargetTable}
                             onChange={(e) => setTransferTargetTable(e.target.value)}
-                            className="flex-1 py-1.5 px-2 text-xs rounded-lg border bg-white font-semibold"
+                            className="flex-1 py-1 px-2 text-xs rounded-lg border bg-white font-semibold"
                             style={{ borderColor: "var(--hairline)" }}
                           >
                             <option value="">Select destination table...</option>
@@ -2026,41 +2027,45 @@ export default function Home() {
                             type="button"
                             disabled={!transferTargetTable || isMerging}
                             onClick={handleTransferTable}
-                            className="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 cursor-pointer shadow-xs whitespace-nowrap"
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-50 cursor-pointer shadow-xs whitespace-nowrap"
                           >
-                            {isMerging ? "Moving..." : "Shift Order"}
+                            {isMerging ? "Moving..." : "Shift"}
                           </button>
                         </div>
                       </div>
                     )}
 
-                    {/* Print Receipt */}
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="w-full py-2.5 rounded text-xs font-semibold cursor-pointer"
-                      style={{
-                        backgroundColor: "var(--dark-surface)",
-                        color: "var(--paper)",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      Print thermal receipt
-                    </button>
+                    {/* Primary Actions: Print Thermal Receipt & Mark Paid side-by-side */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="py-2 px-3 rounded text-xs font-semibold cursor-pointer shrink-0 flex items-center justify-center gap-1 border border-stone-300 hover:bg-stone-100 transition-colors"
+                        style={{
+                          backgroundColor: "var(--paper-dim)",
+                          color: "var(--ink)",
+                          borderRadius: "5px",
+                        }}
+                        title="Print thermal receipt"
+                      >
+                        <span>🖨️</span>
+                        <span>Print</span>
+                      </button>
 
-                    {/* Settle Bill (Clearly weighted primary action) */}
-                    <button
-                      type="button"
-                      onClick={() => handleSettleTable(selectedTable)}
-                      disabled={isSettling}
-                      className="w-full py-3 rounded text-xs font-bold text-white cursor-pointer shadow-sm transition-transform active:scale-95"
-                      style={{
-                        backgroundColor: "var(--sage)",
-                        borderRadius: "5px",
-                      }}
-                    >
-                      {isSettling ? "Settling..." : "Mark paid and free table"}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSettleTable(selectedTable)}
+                        disabled={isSettling}
+                        className="flex-1 py-2 px-3 rounded text-xs font-bold text-white cursor-pointer shadow-sm transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+                        style={{
+                          backgroundColor: "var(--sage)",
+                          borderRadius: "5px",
+                        }}
+                      >
+                        <span>✓</span>
+                        <span>{isSettling ? "Settling..." : "Mark paid & free table"}</span>
+                      </button>
+                    </div>
 
                     {/* Void Order (guarded by canDeleteOrders) */}
                     {activeOrder && (
@@ -2068,20 +2073,12 @@ export default function Home() {
                         <button
                           type="button"
                           onClick={() => handleVoidOrder(activeOrder.id, selectedTable)}
-                          className="w-full py-2 text-xs font-semibold rounded cursor-pointer transition-colors"
-                          style={{
-                            backgroundColor: "transparent",
-                            color: "var(--brick)",
-                            border: "1px solid var(--hairline)",
-                          }}
+                          className="w-full py-0.5 text-[10px] text-red-600 hover:text-red-800 hover:underline cursor-pointer text-center"
                         >
                           Void order and free table
                         </button>
                       ) : (
-                        <div
-                          className="w-full py-1.5 text-center text-[11px] rounded"
-                          style={{ color: "var(--ink-soft)" }}
-                        >
+                        <div className="w-full py-0.5 text-center text-[10px] italic" style={{ color: "var(--ink-soft)" }}>
                           Void locked (owner permission required)
                         </div>
                       )
