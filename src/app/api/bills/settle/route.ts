@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -18,28 +19,88 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    let targetOrderId = orderId;
-    let targetTableId = tableId;
+    // Resolve current user's restaurant_id
+    const { data: staffMember } = await admin
+      .from("staff_users")
+      .select("id, restaurant_id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    const cookieStore = await cookies();
+    const impersonateCookie = cookieStore.get("od_impersonate_resto")?.value;
+    let restaurantId = staffMember?.restaurant_id || null;
+    if (impersonateCookie) {
+      try {
+        const parsed = JSON.parse(impersonateCookie);
+        if (parsed.id) restaurantId = parsed.id;
+      } catch {}
+    }
+
+    let targetOrderId = orderId || null;
+    let targetTableId = tableId || null;
     let activeOrderSessionId: string | null = null;
 
-    // If orderId not directly provided, locate open order by table
-    if (!targetOrderId) {
-      if (tableNumber) {
-        const { data: tableData } = await admin
-          .from("restaurant_tables")
-          .select("id")
-          .eq("table_number", tableNumber)
-          .maybeSingle();
+    // 1. If direct orderId provided, fetch order details directly
+    if (targetOrderId) {
+      const { data: directOrd } = await admin
+        .from("orders")
+        .select("id, table_id, table_session_id, status")
+        .eq("id", targetOrderId)
+        .maybeSingle();
 
-        if (tableData) {
-          targetTableId = tableData.id;
+      if (directOrd) {
+        targetTableId = targetTableId || directOrd.table_id;
+        activeOrderSessionId = directOrd.table_session_id || null;
+      }
+    }
+
+    // 2. If tableId not known yet, resolve from tableNumber scoped by restaurant
+    if (!targetTableId && tableNumber) {
+      // First try exact match scoped by restaurant
+      let tableQuery = admin
+        .from("restaurant_tables")
+        .select("id, table_number")
+        .eq("table_number", String(tableNumber).trim());
+
+      if (restaurantId) {
+        tableQuery = tableQuery.eq("restaurant_id", restaurantId);
+      }
+
+      const { data: tableData } = await tableQuery.maybeSingle();
+      if (tableData) {
+        targetTableId = tableData.id;
+      } else {
+        // Try variants (e.g. "T01" -> "1", "T1", "01")
+        const raw = String(tableNumber).trim();
+        const digits = raw.replace(/\D/g, "");
+        const num = digits ? parseInt(digits, 10).toString() : raw;
+        const variants = Array.from(new Set([
+          raw,
+          `T${num}`,
+          `T0${num}`,
+          `Table ${num}`,
+          `Table T${num}`,
+          num
+        ]));
+
+        let altQuery = admin
+          .from("restaurant_tables")
+          .select("id, table_number")
+          .in("table_number", variants);
+
+        if (restaurantId) {
+          altQuery = altQuery.eq("restaurant_id", restaurantId);
+        }
+
+        const { data: altList } = await altQuery.limit(1);
+        if (altList && altList.length > 0) {
+          targetTableId = altList[0].id;
         }
       }
+    }
 
-      if (!targetTableId) {
-        return NextResponse.json({ message: "Table ID or Table Number required" }, { status: 400 });
-      }
-
+    // 3. If targetOrderId still not known, find the open order on this table
+    if (!targetOrderId && targetTableId) {
       const { data: activeOrder } = await admin
         .from("orders")
         .select("id, table_id, table_session_id, restaurant_id")
@@ -49,8 +110,11 @@ export async function POST(request: NextRequest) {
         .limit(1)
         .maybeSingle();
 
-      if (!activeOrder) {
-        // Table has no open order, ensure it is set to empty
+      if (activeOrder) {
+        targetOrderId = activeOrder.id;
+        activeOrderSessionId = activeOrder.table_session_id || null;
+      } else {
+        // Table has no open order, ensure it is set to empty and return success
         await admin
           .from("restaurant_tables")
           .update({ status: "empty" })
@@ -61,10 +125,23 @@ export async function POST(request: NextRequest) {
           message: "No active order on table. Table status reset to available.",
         });
       }
+    }
 
-      targetOrderId = activeOrder.id;
-      targetTableId = activeOrder.table_id;
-      activeOrderSessionId = activeOrder.table_session_id || null;
+    if (!targetOrderId) {
+      // If table exists but has no active order, free table
+      if (targetTableId) {
+        await admin
+          .from("restaurant_tables")
+          .update({ status: "empty" })
+          .eq("id", targetTableId);
+
+        return NextResponse.json({
+          ok: true,
+          message: "No active order found. Table freed successfully.",
+        });
+      }
+
+      return NextResponse.json({ message: "Unable to locate table or active order for settlement." }, { status: 400 });
     }
 
     // Fetch order items with prices

@@ -669,14 +669,14 @@ export default function Home() {
   }
 
   // Settle bill
-  async function handleSettleTable(tableNum: string) {
+  async function handleSettleTable(tableNum: string, tableId?: string, orderId?: string) {
     if (isSettling) return;
     setIsSettling(true);
     try {
       const res = await fetch("/api/bills/settle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tableNumber: tableNum }),
+        body: JSON.stringify({ tableNumber: tableNum, tableId, orderId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to settle bill");
@@ -1686,9 +1686,126 @@ export default function Home() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Thermal Print Stylesheet: Guaranteed 1-page 80mm POS receipt output */}
+              <style jsx global>{`
+                @media print {
+                  html, body {
+                    background: #ffffff !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    width: 100% !important;
+                  }
+                  /* Hide all web UI, backgrounds, overlays and buttons */
+                  body * {
+                    visibility: hidden !important;
+                  }
+                  /* Show ONLY the clean thermal receipt */
+                  #printable-thermal-receipt,
+                  #printable-thermal-receipt * {
+                    visibility: visible !important;
+                  }
+                  #printable-thermal-receipt {
+                    display: block !important;
+                    position: fixed !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 80mm !important;
+                    max-width: 80mm !important;
+                    margin: 0 !important;
+                    padding: 3mm 4mm !important;
+                    color: #000000 !important;
+                    background: #ffffff !important;
+                    font-family: monospace, 'Courier New', Courier !important;
+                    font-size: 11px !important;
+                    line-height: 1.3 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    page-break-after: avoid !important;
+                    page-break-inside: avoid !important;
+                  }
+                  @page {
+                    size: 80mm auto;
+                    margin: 0;
+                  }
+                }
+              `}</style>
+
+              {/* DEDICATED THERMAL RECEIPT (Visible only during window.print()) */}
+              <div id="printable-thermal-receipt" className="hidden print:block">
+                <div style={{ textAlign: "center", marginBottom: "6px" }}>
+                  <h1 style={{ fontSize: "16px", fontWeight: "900", margin: "0", letterSpacing: "1px", textTransform: "uppercase" }}>
+                    {restaurant?.name || "ORDER DESK RESTAURANT"}
+                  </h1>
+                  <div style={{ fontSize: "10px", marginTop: "2px", fontWeight: "bold" }}>
+                    *** DINING TABLE RECEIPT ***
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px dashed #000", borderBottom: "1px dashed #000", padding: "4px 0", margin: "4px 0", fontSize: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>TABLE: <strong>{selectedTable}</strong></span>
+                    <span>ORDER: <strong>#{activeOrder?.id ? activeOrder.id.slice(0, 6) : "NEW"}</strong></span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: "2px" }}>
+                    <span>SERVER: {currentUser?.name || "Floor staff"}</span>
+                    <span>{new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}, {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                </div>
+
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10px", margin: "6px 0" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #000" }}>
+                      <th style={{ textAlign: "left", paddingBottom: "3px" }}>ITEM</th>
+                      <th style={{ textAlign: "center", paddingBottom: "3px" }}>QTY</th>
+                      <th style={{ textAlign: "right", paddingBottom: "3px" }}>RATE</th>
+                      <th style={{ textAlign: "right", paddingBottom: "3px" }}>AMT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chitItems.map((item) => {
+                      const rate = Number(item.unit_price) || Number(item.menu_items?.price) || 0;
+                      return (
+                        <tr key={item.id} style={{ borderBottom: "1px dotted #ccc" }}>
+                          <td style={{ textAlign: "left", padding: "3px 0", fontWeight: "600" }}>
+                            {item.menu_items?.name || "Dish"}
+                          </td>
+                          <td style={{ textAlign: "center", padding: "3px 0" }}>{item.qty}</td>
+                          <td style={{ textAlign: "right", padding: "3px 0" }}>₹{rate}</td>
+                          <td style={{ textAlign: "right", padding: "3px 0", fontWeight: "bold" }}>₹{item.qty * rate}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div style={{ borderTop: "1px dashed #000", paddingTop: "4px", fontSize: "10px", lineHeight: "1.4" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Subtotal ({chitItems.reduce((acc, it) => acc + it.qty, 0)} items):</span>
+                    <span>₹{subtotal.toLocaleString("en-IN")}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>CGST (2.5%):</span>
+                    <span>₹{cgst.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>SGST (2.5%):</span>
+                    <span>₹{sgst.toFixed(2)}</span>
+                  </div>
+                  <div style={{ borderTop: "1px solid #000", borderBottom: "1px solid #000", margin: "4px 0", padding: "4px 0", display: "flex", justifyContent: "space-between", fontSize: "13px", fontWeight: "900" }}>
+                    <span>TOTAL PAYABLE:</span>
+                    <span>₹{grandTotal.toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: "8px", fontSize: "9px" }}>
+                  <div>*** THANK YOU! VISIT AGAIN ***</div>
+                  <div style={{ marginTop: "2px", opacity: 0.7 }}>Powered by Order Desk</div>
+                </div>
+              </div>
+
               {/* Drag handle for mobile */}
-              <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto mb-1.5 md:hidden shrink-0" />
-              <div>
+              <div className="w-10 h-1 bg-stone-300 rounded-full mx-auto mb-1.5 md:hidden shrink-0 print:hidden" />
+              <div className="print:hidden">
                 {/* Drawer Header */}
                 <div className="flex justify-between items-start pb-2 border-b border-dashed" style={{ borderColor: "var(--hairline)" }}>
                   <div>
@@ -1737,55 +1854,62 @@ export default function Home() {
                 {/* Ordered Items with Permissions check */}
                 {chitItems.length > 0 ? (
                   <div className="pt-1">
-                    <div className="text-[11px] font-semibold pb-1 mb-1.5 border-b border-dashed flex items-center justify-between" style={{ borderColor: "var(--hairline)", color: "var(--ink-soft)" }}>
-                      <span>Ordered items ({chitItems.length})</span>
-                      <span className="text-[10px] opacity-75">Unit Rate / Line Total</span>
+                    {/* Receipt Table Column Headers */}
+                    <div className="text-[10px] font-bold uppercase tracking-wider pb-1 mb-1 border-b border-dashed flex items-center justify-between text-stone-500" style={{ borderColor: "var(--hairline)" }}>
+                      <span className="w-1/2">Dish</span>
+                      <span className="w-10 text-center">Qty</span>
+                      <span className="w-14 text-right">Total</span>
+                      <span className="w-16 text-right">Edit</span>
                     </div>
 
-                    <div className="space-y-1 max-h-[40vh] sm:max-h-[46vh] overflow-y-auto pr-1">
+                    {/* Continuous Receipt Item Rows (No Chunky Box Outlines) */}
+                    <div className="divide-y divide-dashed divide-stone-200/80 max-h-[42vh] sm:max-h-[46vh] overflow-y-auto pr-1">
                       {chitItems.map((item) => {
                         const rate = Number(item.unit_price) || Number(item.menu_items?.price) || 0;
                         return (
                           <div
                             key={item.id}
-                            className="py-1 px-2 rounded flex items-center justify-between text-xs hover:bg-stone-50 transition-colors"
-                            style={{ backgroundColor: "var(--paper-dim)", border: "1px solid var(--hairline)" }}
+                            className="py-1.5 flex items-center justify-between text-xs hover:bg-black/[0.02] transition-colors"
                           >
-                            <div className="flex items-center gap-2 min-w-0 pr-2">
-                              <span className="font-bold text-[10px] px-1.5 py-0.2 rounded bg-stone-200/80 text-stone-800 shrink-0 font-mono">
-                                {item.qty}×
+                            {/* Dish name & rate */}
+                            <div className="w-1/2 pr-2 min-w-0">
+                              <span className="font-bold text-xs truncate block text-stone-900 leading-tight">
+                                {item.menu_items?.name || "Dish"}
                               </span>
-                              <div className="min-w-0 flex items-baseline gap-1.5">
-                                <span className="font-semibold text-xs truncate max-w-[140px] sm:max-w-[200px]" style={{ color: "var(--ink)" }}>
-                                  {item.menu_items?.name || "Dish"}
-                                </span>
-                                <span className="text-[10px] font-receipt opacity-75 shrink-0" style={{ color: "var(--ink-soft)" }}>
-                                  @₹{rate}
-                                </span>
-                              </div>
+                              <span className="text-[10px] text-stone-500 font-mono">
+                                ₹{rate} each
+                              </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="font-receipt font-bold text-xs" style={{ color: "var(--ink)" }}>
-                                ₹{item.qty * rate}
-                              </span>
+                            {/* Qty */}
+                            <div className="w-10 text-center font-mono font-bold text-xs text-stone-800">
+                              {item.qty}×
+                            </div>
 
-                              {/* Permission check: Edit order allowed? */}
+                            {/* Line total */}
+                            <div className="w-14 text-right font-receipt font-bold text-xs text-stone-900">
+                              ₹{item.qty * rate}
+                            </div>
+
+                            {/* Mini Stepper / Locked */}
+                            <div className="w-16 flex justify-end shrink-0">
                               {canEditOrders ? (
-                                <div className="flex items-center gap-0.5 bg-white px-1 py-0.5 rounded border" style={{ borderColor: "var(--hairline)" }}>
+                                <div className="flex items-center bg-white rounded border border-stone-300 shadow-2xs overflow-hidden">
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItemQty(item.id, item.qty - 1)}
-                                    className="w-4 h-4 flex items-center justify-center font-bold text-[11px] hover:bg-stone-100 rounded cursor-pointer"
+                                    className="w-4 h-5 flex items-center justify-center font-bold text-[10px] text-stone-700 hover:bg-stone-100 cursor-pointer active:bg-stone-200"
                                     title="Decrease quantity"
                                   >
                                     -
                                   </button>
-                                  <span className="font-receipt font-bold px-1 text-[11px]">{item.qty}</span>
+                                  <span className="font-receipt font-bold px-1 text-[11px] min-w-[14px] text-center text-stone-900">
+                                    {item.qty}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItemQty(item.id, item.qty + 1)}
-                                    className="w-4 h-4 flex items-center justify-center font-bold text-[11px] hover:bg-stone-100 rounded cursor-pointer"
+                                    className="w-4 h-5 flex items-center justify-center font-bold text-[10px] text-stone-700 hover:bg-stone-100 cursor-pointer active:bg-stone-200"
                                     title="Increase quantity"
                                   >
                                     +
@@ -1793,7 +1917,7 @@ export default function Home() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveItem(item.id)}
-                                    className="w-4 h-4 flex items-center justify-center text-[10px] text-red-600 hover:bg-red-50 rounded ml-0.5 cursor-pointer"
+                                    className="w-4 h-5 flex items-center justify-center text-[9px] text-red-600 hover:bg-red-50 border-l border-stone-200 cursor-pointer"
                                     title="Remove dish"
                                   >
                                     ✕
@@ -1801,8 +1925,7 @@ export default function Home() {
                                 </div>
                               ) : (
                                 <span
-                                  className="text-[9px] px-1 py-0.2 rounded font-mono font-medium"
-                                  style={{ backgroundColor: "var(--paper)", color: "var(--ink-soft)", border: "1px solid var(--hairline)" }}
+                                  className="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium bg-stone-100 text-stone-500 border border-stone-200"
                                   title="Edit locked by restaurant owner"
                                 >
                                   locked
@@ -1815,9 +1938,9 @@ export default function Home() {
                     </div>
 
                     {/* Tax & Grand Total Breakdown */}
-                    <div className="mt-2 pt-2 border-t border-dashed space-y-0.5 text-xs font-receipt" style={{ borderColor: "var(--hairline)" }}>
+                    <div className="mt-2 pt-2 border-t-2 border-dashed space-y-0.5 text-xs font-receipt" style={{ borderColor: "var(--hairline)" }}>
                       <div className="flex justify-between text-[11px]" style={{ color: "var(--ink-soft)" }}>
-                        <span>Subtotal</span>
+                        <span>Subtotal ({chitItems.reduce((acc, it) => acc + it.qty, 0)} items)</span>
                         <span>₹{subtotal.toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between text-[10px]" style={{ color: "var(--ink-soft)" }}>
@@ -1832,7 +1955,7 @@ export default function Home() {
                         <span className="font-heading text-xs font-bold uppercase tracking-wider" style={{ color: "var(--ink)" }}>
                           Total payable
                         </span>
-                        <span className="font-heading text-xl font-bold" style={{ color: "var(--rust)" }}>
+                        <span className="font-heading text-2xl font-bold" style={{ color: "var(--rust)" }}>
                           ₹{grandTotal.toLocaleString("en-IN")}
                         </span>
                       </div>
@@ -1860,34 +1983,6 @@ export default function Home() {
               <div className="pt-2 pb-safe border-t border-dashed space-y-1.5 shrink-0 bg-[var(--paper)] sticky bottom-0" style={{ borderColor: "var(--hairline)" }}>
                 {chitItems.length > 0 && (
                   <>
-                    {/* Add Dishes Button (guarded) */}
-                    {canEditOrders ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOrderTable(selectedTable);
-                          setIsNewOrderOpen(true);
-                        }}
-                        className="w-full py-1.5 text-xs font-semibold rounded cursor-pointer"
-                        style={{
-                          backgroundColor: "var(--paper-dim)",
-                          color: "var(--rust)",
-                          border: "1px solid var(--hairline)",
-                        }}
-                      >
-                        + Add dishes to Table {selectedTable}
-                      </button>
-                    ) : (
-                      <div
-                        className="w-full py-0.5 text-center text-[10px] rounded italic"
-                        style={{
-                          color: "var(--ink-soft)",
-                        }}
-                      >
-                        🔒 Add dishes locked (owner permission required)
-                      </div>
-                    )}
-
                     {/* Waiter Approval Callout if Table has pending verification */}
                     {pendingApprovals.filter(b => b.tableNumber === selectedTable).map(batch => (
                       <div key={batch.id} className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 space-y-1.5 shadow-xs">
@@ -1916,24 +2011,47 @@ export default function Home() {
                       </div>
                     ))}
 
-                    {/* Table Joining & Moving Controls */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    {/* Table Management segmented row (3-in-a-row) */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {canEditOrders ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderTable(selectedTable);
+                            setIsNewOrderOpen(true);
+                          }}
+                          className="py-1.5 px-1.5 text-[11px] font-bold rounded-lg border bg-white hover:bg-stone-50 flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                          style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+                        >
+                          <span>➕</span>
+                          <span>Add Dishes</span>
+                        </button>
+                      ) : (
+                        <div
+                          className="py-1.5 px-1 text-[10px] rounded-lg border text-center flex items-center justify-center text-stone-400 bg-stone-50 italic truncate"
+                          style={{ borderColor: "var(--hairline)" }}
+                          title="Add dishes locked by owner"
+                        >
+                          🔒 Add Locked
+                        </div>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => {
                           setIsMergeOpen((prev) => !prev);
                           setIsTransferOpen(false);
                         }}
-                        className="py-1.5 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
+                        className="py-1.5 px-1.5 text-[11px] font-bold rounded-lg border flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         style={{
-                          backgroundColor: isMergeOpen ? "#FEF3C7" : "var(--paper-dim)",
+                          backgroundColor: isMergeOpen ? "#FEF3C7" : "#FFFFFF",
                           borderColor: isMergeOpen ? "#D97706" : "var(--hairline)",
                           color: isMergeOpen ? "#92400E" : "var(--ink)",
                         }}
                         title="Join two tables together into a single combined order"
                       >
                         <span>🔗</span>
-                        <span>{isMergeOpen ? "Close Join" : "Join Table"}</span>
+                        <span>{isMergeOpen ? "Close" : "Join Table"}</span>
                       </button>
 
                       <button
@@ -1942,16 +2060,16 @@ export default function Home() {
                           setIsTransferOpen((prev) => !prev);
                           setIsMergeOpen(false);
                         }}
-                        className="py-1.5 px-2 text-xs font-semibold rounded cursor-pointer flex items-center justify-center gap-1.5 border transition-colors"
+                        className="py-1.5 px-1.5 text-[11px] font-bold rounded-lg border flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-2xs"
                         style={{
-                          backgroundColor: isTransferOpen ? "#DBEAFE" : "var(--paper-dim)",
+                          backgroundColor: isTransferOpen ? "#DBEAFE" : "#FFFFFF",
                           borderColor: isTransferOpen ? "#2563EB" : "var(--hairline)",
                           color: isTransferOpen ? "#1E40AF" : "var(--ink)",
                         }}
                         title="Transfer this order to another table"
                       >
                         <span>🔄</span>
-                        <span>{isTransferOpen ? "Close Shift" : "Shift Table"}</span>
+                        <span>{isTransferOpen ? "Close" : "Shift Table"}</span>
                       </button>
                     </div>
 
@@ -2036,30 +2154,24 @@ export default function Home() {
                     )}
 
                     {/* Primary Actions: Print Thermal Receipt & Mark Paid side-by-side */}
-                    <div className="flex items-center gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-2 pt-0.5">
                       <button
                         type="button"
                         onClick={() => window.print()}
-                        className="py-2 px-3 rounded text-xs font-semibold cursor-pointer shrink-0 flex items-center justify-center gap-1 border border-stone-300 hover:bg-stone-100 transition-colors"
-                        style={{
-                          backgroundColor: "var(--paper-dim)",
-                          color: "var(--ink)",
-                          borderRadius: "5px",
-                        }}
-                        title="Print thermal receipt"
+                        className="w-1/3 py-2.5 px-3 rounded-xl text-xs font-bold cursor-pointer shrink-0 flex items-center justify-center gap-1.5 border border-stone-300 bg-white text-stone-800 hover:bg-stone-50 active:scale-98 transition-all shadow-xs"
+                        title="Print thermal guest receipt"
                       >
                         <span>🖨️</span>
-                        <span>Print</span>
+                        <span>Print Slip</span>
                       </button>
 
                       <button
                         type="button"
-                        onClick={() => handleSettleTable(selectedTable)}
+                        onClick={() => handleSettleTable(selectedTable, activeTableObj?.id, activeOrder?.id)}
                         disabled={isSettling}
-                        className="flex-1 py-2 px-3 rounded text-xs font-bold text-white cursor-pointer shadow-sm transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+                        className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black text-white cursor-pointer shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5"
                         style={{
                           backgroundColor: "var(--sage)",
-                          borderRadius: "5px",
                         }}
                       >
                         <span>✓</span>
@@ -2068,20 +2180,14 @@ export default function Home() {
                     </div>
 
                     {/* Void Order (guarded by canDeleteOrders) */}
-                    {activeOrder && (
-                      canDeleteOrders ? (
-                        <button
-                          type="button"
-                          onClick={() => handleVoidOrder(activeOrder.id, selectedTable)}
-                          className="w-full py-0.5 text-[10px] text-red-600 hover:text-red-800 hover:underline cursor-pointer text-center"
-                        >
-                          Void order and free table
-                        </button>
-                      ) : (
-                        <div className="w-full py-0.5 text-center text-[10px] italic" style={{ color: "var(--ink-soft)" }}>
-                          Void locked (owner permission required)
-                        </div>
-                      )
+                    {activeOrder && canDeleteOrders && (
+                      <button
+                        type="button"
+                        onClick={() => handleVoidOrder(activeOrder.id, selectedTable)}
+                        className="w-full py-0.5 text-[10px] text-red-600 hover:text-red-800 hover:underline cursor-pointer text-center block"
+                      >
+                        Void order and free table
+                      </button>
                     )}
                   </>
                 )}
