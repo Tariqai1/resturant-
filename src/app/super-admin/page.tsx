@@ -2093,25 +2093,24 @@ export default function SuperAdminPage() {
                       title="Select all matching outlets"
                     />
                   </th>
-                  <th className="px-5 py-3.5">Restaurant &amp; Feature Matrix</th>
+                  <th className="px-5 py-3.5">Restaurant Outlet</th>
                   <th className="px-5 py-3.5">Owner &amp; Contact</th>
-                  <th className="px-5 py-3.5">Plan &amp; Theme</th>
-                  <th className="px-5 py-3.5">Live Metrics</th>
-                  <th className="px-5 py-3.5">Subscription</th>
+                  <th className="px-5 py-3.5">Plan &amp; Status</th>
+                  <th className="px-5 py-3.5">Live Volume</th>
                   <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#241F1A]">
                 {loading && restaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-[#8C8275] font-mono">
+                    <td colSpan={6} className="px-6 py-12 text-center text-[#8C8275] font-mono">
                       <i className="fa-solid fa-circle-notch animate-spin text-lg text-[#D96B27] mb-2 block" />
                       Loading platform tenant records...
                     </td>
                   </tr>
                 ) : filteredRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-[#8C8275] font-mono">
+                    <td colSpan={6} className="px-6 py-12 text-center text-[#8C8275] font-mono">
                       No restaurants match your filter. Click &quot;+ Onboard New Restaurant&quot; to add one.
                     </td>
                   </tr>
@@ -2148,304 +2147,120 @@ export default function SuperAdminPage() {
                           />
                         </td>
 
-                        {/* Restaurant Name, ID & Interactive 1-Click Feature Matrix */}
+                        {/* Outlet Name & Details */}
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white text-sm">{r.name}</span>
+                            <span className="font-bold text-sm text-white">{r.name}</span>
                             {isArchived && (
-                              <span className="bg-amber-900/40 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded border border-amber-800/60 font-bold uppercase">
+                              <span className="bg-amber-900/30 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase">
                                 ARCHIVED
                               </span>
                             )}
                           </div>
-                          <div className="text-[11px] font-mono text-[#7D7466] flex items-center gap-2 mt-0.5">
-                            <span>ID: {r.id.slice(0, 8)}...</span>
+                          <div className="text-[11px] text-[#8C8275] flex items-center gap-2 mt-0.5 font-mono">
+                            <span>{r.stats.tableCount} Tables</span>
+                            <span>•</span>
+                            <span>ID: {r.id.slice(0, 8)}</span>
                             {r.gstin && (
-                              <span className="bg-[#221C17] px-1.5 py-0.2 rounded text-[10px] text-[#A89F91] border border-[#2F2720]">
-                                GST: {r.gstin}
-                              </span>
+                              <>
+                                <span>•</span>
+                                <span>GST: {r.gstin}</span>
+                              </>
                             )}
                           </div>
+                        </td>
 
-                          {/* 1-Click Direct Feature Matrix Pills */}
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                            {[
-                              {
-                                key: "loyaltyOffers" as const,
-                                label: "Offers",
-                                icon: "🎁",
-                                active: Boolean(r.features?.loyaltyOffers ?? true),
-                              },
-                              {
-                                key: "smartUpsell" as const,
-                                label: "Upsell",
-                                icon: "💡",
-                                active: Boolean(r.features?.smartUpsell ?? r.upsellConfig?.enabled ?? true),
-                              },
-                              {
-                                key: "tablePayUpi" as const,
-                                label: "UPI",
-                                icon: "💳",
-                                active: Boolean(r.features?.tablePayUpi),
-                              },
-                              {
-                                key: "callWaiter" as const,
-                                label: "Waiter",
-                                icon: "🛎️",
-                                active: Boolean(r.features?.callWaiter),
-                              },
-                              {
-                                key: "waiterOrderApproval" as const,
-                                label: "Approval",
-                                icon: "👨‍💼",
-                                active: Boolean(r.features?.waiterOrderApproval),
-                              },
-                              {
-                                key: "persistentAlarm" as const,
-                                label: "Alarm Loop",
-                                icon: "🚨",
-                                active: Boolean(r.features?.persistentAlarm !== false),
-                              },
-                              {
-                                key: "whatsappAlerts" as const,
-                                label: "WhatsApp Bot",
-                                icon: "📱",
-                                active: Boolean(r.features?.whatsappAlerts),
-                              },
-                              {
-                                key: "mobileNavStyle" as const,
-                                label: "BottomBar",
-                                icon: "⚡",
-                                active: (r.features?.mobileNavStyle ?? "bottom_bar") === "bottom_bar",
-                              },
-                              {
-                                key: "feedbackReview" as const,
-                                label: "Review",
-                                icon: "⭐",
-                                active: Boolean(r.features?.feedbackReview),
-                              },
-                              {
-                                key: "prepTimeTracker" as const,
-                                label: "Timer",
-                                icon: "⏳",
-                                active: Boolean(r.features?.prepTimeTracker),
-                              },
-                              {
-                                key: "autoMobileCards" as const,
-                                label: "Cards",
-                                icon: "🖼️",
-                                active: Boolean(r.features?.autoMobileCards ?? true),
-                              },
-                            ].map((pill) => (
-                              <button
-                                key={pill.key}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDirectToggleFeature(r, pill.key);
-                                }}
-                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 border transition-all cursor-pointer ${
-                                  pill.active
-                                    ? "bg-emerald-950/40 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60 shadow-xs"
-                                    : "bg-[#1E1914] text-stone-500 border-stone-800/80 hover:border-stone-700 hover:text-stone-300"
-                                }`}
-                                title={`Click to toggle ${pill.label} (${pill.active ? "Currently ON" : "Currently OFF"})`}
-                              >
-                                <span className={`w-1.5 h-1.5 rounded-full ${pill.active ? "bg-emerald-400" : "bg-stone-600"}`} />
-                                <span>{pill.icon}</span>
-                                <span>{pill.label}</span>
-                              </button>
-                            ))}
+                        {/* Owner & WhatsApp */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-white">{r.ownerName}</span>
+                            <a
+                              href={getWhatsAppSetupUrl(r)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-400 hover:text-emerald-300 text-xs p-1 rounded hover:bg-emerald-950/40 transition-colors"
+                              title="Send credentials to owner via WhatsApp"
+                            >
+                              <i className="fa-brands fa-whatsapp text-sm" />
+                            </a>
+                          </div>
+                          <div className="text-[11px] text-[#8C8275] font-mono truncate max-w-[200px]">
+                            {r.ownerEmail}
                           </div>
                         </td>
 
-                        {/* Owner Details */}
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-[#EDE8DF]">{r.ownerName}</div>
-                          <div className="text-[11px] text-[#8C8275] font-mono">{r.ownerEmail}</div>
-                        </td>
-
-                        {/* Plan & Theme */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1 items-start">
+                        {/* Plan & Status */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                                 r.subscriptionPlan === "pro"
-                                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-800/60"
+                                  ? "bg-purple-950/40 text-purple-300 border border-purple-800/50"
                                   : r.subscriptionPlan === "basic"
-                                  ? "bg-blue-950/40 text-blue-300 border-blue-800/60"
-                                  : "bg-amber-950/40 text-amber-300 border-amber-800/60"
+                                  ? "bg-blue-950/40 text-blue-300 border border-blue-800/50"
+                                  : "bg-amber-950/40 text-amber-300 border border-amber-800/50"
                               }`}
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-current" />
                               {r.subscriptionPlan}
                             </span>
 
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[#1F1914] border border-[#332A22]">
-                              <span
-                                className="w-2 h-2 rounded-full"
-                                style={{
-                                  backgroundColor: r.theme === "crimson" ? "#741A2F" : "#FFBE0B",
-                                  border: r.theme === "crimson" ? "1px solid #FFC6A8" : "1px solid #2A2312",
-                                }}
-                              />
-                              <span className="text-[#A89F91]">
-                                {r.theme === "crimson" ? "Crimson" : "Amber Gold"}
-                              </span>
-                            </span>
+                            {isArchived ? (
+                              <span className="text-[10px] text-amber-400 font-mono font-bold">Archived</span>
+                            ) : (
+                              <button
+                                onClick={() => handleToggleStatus(r)}
+                                disabled={isPending}
+                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold transition-all border cursor-pointer ${
+                                  isActive
+                                    ? "bg-emerald-950/30 text-emerald-400 border-emerald-800/50 hover:bg-red-950/30 hover:text-red-400"
+                                    : "bg-red-950/30 text-red-400 border-red-800/50 hover:bg-emerald-950/30 hover:text-emerald-400"
+                                }`}
+                                title={isActive ? "Click to suspend outlet" : "Click to activate outlet"}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-400" : "bg-red-400"}`} />
+                                <span>{isActive ? "Active" : "Frozen"}</span>
+                              </button>
+                            )}
                           </div>
                         </td>
 
-                        {/* Metrics */}
-                        <td className="px-6 py-4 font-mono text-[11px]">
+                        {/* GMV & Orders */}
+                        <td className="px-5 py-4 font-mono text-[11px]">
                           <div className="text-white font-bold">₹{r.stats.gmv.toLocaleString("en-IN")}</div>
-                          <div className="text-[#8C8275] flex items-center gap-2 mt-0.5">
-                            <span>{r.stats.tableCount} Tables</span>
-                            <span>•</span>
-                            <span>{r.stats.totalOrders} Orders</span>
-                          </div>
+                          <div className="text-[#8C8275]">{r.stats.totalOrders} Orders</div>
                         </td>
 
-                        {/* Subscription Status Toggle */}
-                        <td className="px-6 py-4">
-                          {isArchived ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-amber-950/40 text-amber-300 border border-amber-800/60">
-                              <i className="fa-solid fa-box-archive text-[10px]" />
-                              <span>ARCHIVED</span>
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleToggleStatus(r)}
-                              disabled={isPending}
-                              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-mono font-bold transition-all border cursor-pointer ${
-                                isActive
-                                  ? "bg-emerald-950/30 text-emerald-400 border-emerald-800/60 hover:bg-red-950/30 hover:text-red-400 hover:border-red-800/60"
-                                  : "bg-red-950/30 text-red-400 border-red-800/60 hover:bg-emerald-950/30 hover:text-emerald-400 hover:border-emerald-800/60"
-                              }`}
-                              title={isActive ? "Click to Freeze/Suspend" : "Click to Activate"}
-                            >
-                              <span className={`w-2 h-2 rounded-full ${isActive ? "bg-emerald-400" : "bg-red-400"}`} />
-                              <span>{isActive ? "ACTIVE" : "FROZEN"}</span>
-                            </button>
-                          )}
-                        </td>
-
-                        {/* Actions: Share Menu, WhatsApp, Staff, Impersonate, Plan, Reset, Archive/Restore, Delete */}
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Pro Feature Cockpit Trigger */}
-                            <button
-                              onClick={() => setCockpitResto(r)}
-                              className="px-2.5 py-1 bg-[#D96B27]/20 hover:bg-[#D96B27] text-[#F38B47] hover:text-white border border-[#D96B27]/50 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
-                              title="Open Executive Feature Cockpit & Live Screen Mirror"
-                            >
-                              <i className="fa-solid fa-sliders text-[10px]" />
-                              <span>Cockpit</span>
-                            </button>
-
-                            {/* WhatsApp Direct Owner Link */}
-                            <a
-                              href={(() => {
-                                const origin = typeof window !== "undefined" ? window.location.origin : "";
-                                const loginUrl = `${origin}/login?resto=${r.id}&role=owner`;
-                                const cleanPhone = (r.contactPhone || "").replace(/\D/g, "");
-                                const msg = `👋 *OrderDesk Login - ${r.name}*\n\n🔗 *Dashboard Link*: ${loginUrl}\n👤 *Owner*: ${r.ownerName}\n📧 *Email*: ${r.ownerEmail}\n\nOpen this link on your mobile or tablet to access your restaurant desk!`;
-                                return cleanPhone
-                                  ? `https://api.whatsapp.com/send?phone=91${cleanPhone.length === 10 ? cleanPhone : cleanPhone}&text=${encodeURIComponent(msg)}`
-                                  : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                              })()}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-sm"
-                              title="Send Login Link to Owner via WhatsApp"
-                            >
-                              <i className="fa-brands fa-whatsapp text-emerald-400 text-xs" />
-                              <span>WhatsApp</span>
-                            </a>
-
-                            {/* Share Customer Menu */}
-                            <button
-                              onClick={() => setShareMenuResto(r)}
-                              className="px-2.5 py-1 bg-[#1A2C21] hover:bg-[#223B2C] text-emerald-300 border border-emerald-700/50 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
-                              title="Share or View Customer Digital Menu"
-                            >
-                              <i className="fa-solid fa-share-nodes text-[10px] text-emerald-400" />
-                              <span>Share Menu</span>
-                            </button>
-
-                            {/* View & Manage Staff Roster */}
-                            <button
-                              onClick={() => handleOpenStaffModal(r)}
-                              className="px-2.5 py-1 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                              title="Inspect staff, roles, PINs, and add staff members"
-                            >
-                              <i className="fa-solid fa-users text-[#D96B27] text-[10px]" />
-                              <span>Staff ({r.stats.staffCount})</span>
-                            </button>
-
-                            {/* Impersonate Ghost Mode */}
+                        {/* Actions */}
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* 1-Click Floor POS Login */}
                             <button
                               onClick={() => handleImpersonate(r)}
                               disabled={isPending}
-                              className="px-2.5 py-1 bg-[#D96B27]/15 hover:bg-[#D96B27]/30 text-[#F38B47] border border-[#D96B27]/40 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                              title="Ghost Mode: View live terminal as restaurant owner"
+                              className="px-3 py-1.5 bg-[#D96B27]/15 hover:bg-[#D96B27]/30 text-[#F38B47] hover:text-white border border-[#D96B27]/40 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                              title="Open POS as restaurant manager"
                             >
-                              <i className="fa-solid fa-ghost text-[10px]" />
-                              <span>Impersonate</span>
+                              <i className="fa-solid fa-arrow-up-right-from-square text-[10px]" />
+                              <span>Open POS</span>
                             </button>
 
-                            {/* Edit Plan */}
+                            {/* Cockpit / Manage Settings Drawer */}
                             <button
-                              onClick={() => setEditingRestaurant(r)}
-                              className="px-2 py-1 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded text-[11px] transition-colors cursor-pointer"
-                              title="Edit Subscription Plan"
+                              onClick={() => setCockpitResto(r)}
+                              className="px-3 py-1.5 bg-[#1E1914] hover:bg-[#28211B] text-[#EDE8DF] border border-[#2D251F] hover:border-[#8C8275] rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                              title="Manage outlet settings, features, PIN reset & staff"
                             >
-                              <i className="fa-solid fa-pen-to-square text-[#8C8275]" />
+                              <i className="fa-solid fa-sliders text-[10px]" />
+                              <span>Manage</span>
                             </button>
 
-                            {/* Reset Credentials */}
+                            {/* Share Menu */}
                             <button
-                              onClick={() => {
-                                setResettingOwner(r);
-                                setResetForm({ newPin: "", newPassword: "", sendRecoveryEmail: true });
-                              }}
-                              className="px-2 py-1 bg-[#221C17] hover:bg-[#2C241E] text-[#D8D0C3] border border-[#302821] rounded text-[11px] transition-colors cursor-pointer"
-                              title="Reset Owner PIN / Password"
+                              onClick={() => setShareMenuResto(r)}
+                              className="p-1.5 text-[#8C8275] hover:text-white hover:bg-[#221C17] rounded-lg border border-transparent hover:border-[#2D251F] transition-all cursor-pointer"
+                              title="Share Digital Menu QR"
                             >
-                              <i className="fa-solid fa-key text-[#D96B27]" />
-                            </button>
-
-                            {/* Archive or Restore Button */}
-                            {isArchived ? (
-                              <button
-                                onClick={() => handleArchiveToggle(r)}
-                                disabled={isPending}
-                                className="px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/60 rounded text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                                title="Restore to Active Fleet"
-                              >
-                                <i className="fa-solid fa-rotate-left text-[10px]" />
-                                <span>Restore</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleArchiveToggle(r)}
-                                disabled={isPending}
-                                className="px-2 py-1 bg-[#221C17] hover:bg-[#2C241E] text-amber-400 border border-amber-900/40 rounded text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                                title="Archive Outlet (GST Audit Protected)"
-                              >
-                                <i className="fa-solid fa-box-archive text-[10px]" />
-                                <span>Archive</span>
-                              </button>
-                            )}
-
-                            {/* Delete Button */}
-                            <button
-                              onClick={() => setDeletingRestaurant(r)}
-                              disabled={isPending}
-                              className="px-2 py-1 bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded text-[11px] transition-colors cursor-pointer"
-                              title={r.stats.totalOrders > 0 ? "Protected by GST audit compliance" : "Delete test outlet"}
-                            >
-                              <i className="fa-solid fa-trash-can" />
+                              <i className="fa-solid fa-qrcode text-xs" />
                             </button>
                           </div>
                         </td>

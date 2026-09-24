@@ -11,6 +11,22 @@
   },
   "activities": [
     {
+      "action": "STATUS_CHANGE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "details": "Batch updated 6 restaurants: Branding/Theme",
+      "id": "act-muft6i24-48ax",
+      "createdAt": "2026-09-24T17:31:25.036Z"
+    },
+    {
+      "action": "STATUS_CHANGE",
+      "actorEmail": "tariqfsd9@gmail.com",
+      "targetId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
+      "targetName": "Tauheed Resto",
+      "details": "Updated feature entitlements switchboard for \"Tauheed Resto\"",
+      "id": "act-muft5e4q-w46c",
+      "createdAt": "2026-09-24T17:30:33.290Z"
+    },
+    {
       "action": "ARCHIVE",
       "actorEmail": "tariqfsd9@gmail.com",
       "targetId": "217c033a-1a3e-4d7b-a095-55ee98c94a3b",
@@ -180,8 +196,70 @@
     }
   ],
   "restaurantThemes": {
-    "c816369c-fd3b-4034-bba2-7c766584de4e": "amber"
+    "c816369c-fd3b-4034-bba2-7c766584de4e": "amber",
+    "d7762112-5cd5-47db-941d-b212860796ca": "amber",
+    "a0bc7220-bd74-4aa1-ab75-a5b59958ccf3": "amber",
+    "9a8d585c-b313-4383-b494-6c306c93318e": "amber",
+    "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5": "amber",
+    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": "amber"
   },
-  "restaurantFeatures": {},
-  "orderPrepEstimates": {}
+  "restaurantBrandings": {
+    "d7762112-5cd5-47db-941d-b212860796ca": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    },
+    "a0bc7220-bd74-4aa1-ab75-a5b59958ccf3": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    },
+    "9a8d585c-b313-4383-b494-6c306c93318e": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    },
+    "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    },
+    "c816369c-fd3b-4034-bba2-7c766584de4e": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    },
+    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": {
+      "theme": "amber",
+      "logoUrl": "",
+      "tagline": "Instant Contactless Dining Experience"
+    }
+  },
+  "restaurantFeatures": {
+    "217c033a-1a3e-4d7b-a095-55ee98c94a3b": {
+      "callWaiter": true,
+      "prepTimeTracker": true,
+      "customRequests": true,
+      "tablePayUpi": true,
+      "dishNotes": true,
+      "smartUpsell": true,
+      "feedbackReview": true,
+      "loyaltyOffers": true,
+      "waiterOrderApproval": true,
+      "persistentAlarm": true,
+      "alarmEscalationSec": 90,
+      "whatsappAlerts": true,
+      "whatsappCaptainPhone": "",
+      "whatsappWebhookUrl": "",
+      "mobileNavStyle": "bottom_bar",
+      "mobileSheetModals": true,
+      "autoMobileCards": true
+    }
+  },
+  "restaurantOffers": {},
+  "restaurantUpsellConfigs": {},
+  "orderPrepEstimates": {},
+  "restaurantPhones": {},
+  "dishSpecialTags": {},
+  "pendingOrderApprovals": {}
 }
