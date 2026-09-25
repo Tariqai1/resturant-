@@ -180,14 +180,43 @@ export default function KitchenDisplayPage() {
       })
       .catch(() => undefined);
 
-    const interval = setInterval(() => {
-      fetchKitchenTickets();
-      setCurrentTime(Date.now());
-    }, 2500);
+    let kitchenInterval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (kitchenInterval) clearInterval(kitchenInterval);
+      kitchenInterval = setInterval(() => {
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
+        }
+        fetchKitchenTickets();
+        setCurrentTime(Date.now());
+      }, 3000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined") {
+        if (document.visibilityState === "visible") {
+          fetchKitchenTickets();
+          setCurrentTime(Date.now());
+          startPolling();
+        } else if (kitchenInterval) {
+          clearInterval(kitchenInterval);
+          kitchenInterval = null;
+        }
+      }
+    };
+
+    startPolling();
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (kitchenInterval) clearInterval(kitchenInterval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchKitchenTickets]);
 

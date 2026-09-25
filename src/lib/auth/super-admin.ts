@@ -2,16 +2,17 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { User } from "@supabase/supabase-js";
 
-// Hardcoded platform owner emails as high-priority fallback
+// Platform owner emails fallback (can also be configured via process.env.SUPER_ADMIN_EMAILS)
 const DEFAULT_SUPER_ADMIN_EMAILS = [
   "tariqfsd9@gmail.com",
-  "tarique@gmai.com",
   "tarique@gmail.com",
 ];
 
 export function getSuperAdminEmails(): string[] {
   const envEmails = process.env.SUPER_ADMIN_EMAILS
-    ? process.env.SUPER_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase())
+    ? process.env.SUPER_ADMIN_EMAILS.split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
     : [];
   return Array.from(new Set([...DEFAULT_SUPER_ADMIN_EMAILS, ...envEmails]));
 }

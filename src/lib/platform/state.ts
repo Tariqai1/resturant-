@@ -224,6 +224,50 @@ function ensureDataDir() {
   }
 }
 
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export async function syncPlatformStateToDb(state: PlatformState): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    await admin
+      .from("platform_state_store")
+      .upsert({
+        id: "global_platform_state",
+        state: state as any,
+        updated_at: new Date().toISOString(),
+      });
+  } catch {
+    // Non-blocking fallback if DB is not reachable or credentials absent
+  }
+}
+
+export async function syncPlatformStateFromDb(): Promise<PlatformState> {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("platform_state_store")
+      .select("state")
+      .eq("id", "global_platform_state")
+      .maybeSingle();
+
+    if (!error && data?.state) {
+      const dbState = data.state as PlatformState;
+      memoryState = {
+        ...memoryState,
+        ...dbState,
+      };
+      try {
+        ensureDataDir();
+        fs.writeFileSync(STATE_FILE, JSON.stringify(memoryState, null, 2), "utf-8");
+      } catch {}
+      return memoryState;
+    }
+  } catch {
+    // Non-blocking fallback
+  }
+  return getPlatformState();
+}
+
 export function getPlatformState(): PlatformState {
   ensureDataDir();
   try {
@@ -261,8 +305,14 @@ export function savePlatformState(state: PlatformState): void {
   try {
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
   } catch (err) {
-    console.warn("[platform-state] Error writing state file:", err);
+    // In serverless / read-only filesystem environments, writing to disk might fail.
+    // Memory state and Supabase DB sync handle persistence.
   }
+
+  // Background async persistence to database
+  try {
+    syncPlatformStateToDb(state).catch(() => {});
+  } catch {}
 }
 
 export function getBroadcast(): BroadcastBanner | null {

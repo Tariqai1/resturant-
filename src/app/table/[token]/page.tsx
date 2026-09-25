@@ -401,11 +401,42 @@ export default function CustomerTableOrderingPage({
         setIsLoading(false);
       });
 
-    // Poll live order status every 3 seconds for instant multi-guest sync
-    const interval = setInterval(loadTableData, 3000);
+    // Adaptive polling: pause when tab/phone is backgrounded or screen locked
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(() => {
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return; // Skip poll cycle if user switched tabs / locked screen
+        }
+        loadTableData();
+      }, 3500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined") {
+        if (document.visibilityState === "visible") {
+          loadTableData(); // Instant sync when user returns
+          startPolling();
+        } else if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
+      }
+    };
+
+    startPolling();
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (pollInterval) clearInterval(pollInterval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [token, loadTableData]);
 

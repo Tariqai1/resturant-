@@ -485,14 +485,43 @@ export default function Home() {
       })
       .catch(() => undefined);
 
-    const interval = setInterval(() => {
-      fetchDashboardData();
-      setCurrentTime(Date.now());
-    }, 3000);
+    let dashboardInterval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (dashboardInterval) clearInterval(dashboardInterval);
+      dashboardInterval = setInterval(() => {
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+          return;
+        }
+        fetchDashboardData();
+        setCurrentTime(Date.now());
+      }, 3500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== "undefined") {
+        if (document.visibilityState === "visible") {
+          fetchDashboardData();
+          setCurrentTime(Date.now());
+          startPolling();
+        } else if (dashboardInterval) {
+          clearInterval(dashboardInterval);
+          dashboardInterval = null;
+        }
+      }
+    };
+
+    startPolling();
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      if (dashboardInterval) clearInterval(dashboardInterval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchDashboardData]);
 

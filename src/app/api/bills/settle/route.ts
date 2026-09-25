@@ -170,23 +170,47 @@ export async function POST(request: NextRequest) {
     const taxAmount = Math.round(subtotal * 0.05 * 100) / 100; // 5% GST
     const total = Math.round((subtotal + taxAmount) * 100) / 100;
 
-    // 1. Insert Paid Bill
-    const { data: billRecord, error: billErr } = await admin
+    // 0. Idempotency Check: Prevent duplicate billing on double-clicks or concurrent requests
+    const { data: existingBill } = await admin
       .from("bills")
-      .insert({
-        order_id: targetOrderId,
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-        payment_mode: ["cash", "upi", "card"].includes(paymentMode) ? paymentMode : "cash",
-        payment_status: "paid",
-        paid_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+      .select("id, subtotal, tax_amount, total, payment_mode, payment_status, paid_at")
+      .eq("order_id", targetOrderId)
+      .maybeSingle();
 
-    if (billErr) {
-      return NextResponse.json({ message: billErr.message }, { status: 500 });
+    let billRecord = existingBill;
+
+    if (!billRecord) {
+      // 1. Insert Paid Bill
+      const { data: newBill, error: billErr } = await admin
+        .from("bills")
+        .insert({
+          order_id: targetOrderId,
+          subtotal,
+          tax_amount: taxAmount,
+          total,
+          payment_mode: ["cash", "upi", "card"].includes(paymentMode) ? paymentMode : "cash",
+          payment_status: "paid",
+          paid_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (billErr) {
+        // If concurrent request won the race, fetch the created bill
+        const { data: racedBill } = await admin
+          .from("bills")
+          .select("id, subtotal, tax_amount, total, payment_mode, payment_status, paid_at")
+          .eq("order_id", targetOrderId)
+          .maybeSingle();
+
+        if (racedBill) {
+          billRecord = racedBill;
+        } else {
+          return NextResponse.json({ message: billErr.message }, { status: 500 });
+        }
+      } else {
+        billRecord = newBill;
+      }
     }
 
     // 2. Mark Order as Closed

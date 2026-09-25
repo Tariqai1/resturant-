@@ -941,6 +941,8 @@ export default function MenuManagementPage() {
                                   src={item.photo_url}
                                   alt={item.name}
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  loading="lazy"
+                                  decoding="async"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-xl bg-slate-800 text-slate-400">
@@ -1097,6 +1099,8 @@ export default function MenuManagementPage() {
                         src={item.photo_url}
                         alt={item.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-4xl bg-slate-800 text-slate-500">
