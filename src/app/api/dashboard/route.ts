@@ -38,6 +38,9 @@ export async function GET() {
   if (impersonating) {
     const targetRestoId = impersonating.id;
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
     const [
       restaurantRes,
       staffRes,
@@ -65,7 +68,7 @@ export async function GET() {
           menu_items (id, name, is_veg, price)
         )
       `).eq("restaurant_id", targetRestoId).eq("status", "open").order("opened_at", { ascending: true }),
-      admin.from("bills").select("id, total, payment_status, paid_at, order:orders(restaurant_id)"),
+      admin.from("bills").select("id, total, payment_status, paid_at, order:orders(restaurant_id)").gte("paid_at", todayStart.toISOString()),
       admin.from("menu_items").select("id, name, price, is_veg, is_bestseller").eq("restaurant_id", targetRestoId).eq("is_available", true).order("is_bestseller", { ascending: false }).limit(6),
     ]);
 
@@ -146,6 +149,9 @@ export async function GET() {
   }
 
   // Normal flow
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
   const [
     restaurantResult,
     staffResult,
@@ -189,7 +195,8 @@ export async function GET() {
       .order("opened_at", { ascending: true }),
     supabase
       .from("bills")
-      .select("id, total, payment_status, paid_at"),
+      .select("id, total, payment_status, paid_at")
+      .gte("paid_at", todayStart.toISOString()),
     supabase
       .from("menu_items")
       .select("id, name, price, is_veg, is_bestseller")

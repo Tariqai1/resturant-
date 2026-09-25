@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSuperAdminEmails } from "@/lib/auth/super-admin";
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -40,14 +41,7 @@ export async function proxy(request: NextRequest) {
   const isSuperAdminRoute = request.nextUrl.pathname.startsWith("/super-admin");
   const isSuperAdminDashboard = isSuperAdminRoute && !isSuperAdminLoginPage;
 
-  const superAdminEmails = [
-    "tariqfsd9@gmail.com",
-    "tarique@gmai.com",
-    "tarique@gmail.com",
-    ...(process.env.SUPER_ADMIN_EMAILS
-      ? process.env.SUPER_ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase())
-      : []),
-  ];
+  const superAdminEmails = getSuperAdminEmails();
 
   if (!user) {
     if (isPublicApi || isLoginPage || isSuperAdminLoginPage || isSetupPage || isEnterPage || isCustomerTableRoute) {
@@ -118,5 +112,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|css|js)$).*)",
+  ],
 };

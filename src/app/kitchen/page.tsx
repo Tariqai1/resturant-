@@ -67,9 +67,39 @@ export default function KitchenDisplayPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "preparing">("all");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string } | null>(null);
   const previousOrderCountRef = useRef(0);
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now());
+
+  const unlockAudioContext = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().then(() => setIsAudioUnlocked(true)).catch(() => setIsAudioUnlocked(true));
+      } else {
+        setIsAudioUnlocked(true);
+      }
+    } catch {
+      setIsAudioUnlocked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleFirstGesture = () => {
+      unlockAudioContext();
+      window.removeEventListener("click", handleFirstGesture);
+      window.removeEventListener("touchstart", handleFirstGesture);
+    };
+    window.addEventListener("click", handleFirstGesture);
+    window.addEventListener("touchstart", handleFirstGesture);
+    return () => {
+      window.removeEventListener("click", handleFirstGesture);
+      window.removeEventListener("touchstart", handleFirstGesture);
+    };
+  }, [unlockAudioContext]);
 
   // Web Audio Synthesizer: Alert Chime for New Orders
   const playChime = useCallback(() => {
@@ -509,6 +539,19 @@ export default function KitchenDisplayPage() {
           >
             {soundEnabled ? "🔔 Chime ON" : "🔕 Muted"}
           </button>
+
+          {/* iOS Safari WebAudio Unlock Indicator */}
+          {soundEnabled && !isAudioUnlocked && (
+            <button
+              type="button"
+              onClick={unlockAudioContext}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer border border-amber-500/60 bg-amber-500/20 text-amber-300 animate-pulse flex items-center gap-1 shadow-sm"
+              title="Tap to allow iPad/Safari to play incoming order chimes"
+            >
+              <span>🔊</span>
+              <span>Tap to activate audio</span>
+            </button>
+          )}
 
           {/* Fullscreen Button */}
           <button

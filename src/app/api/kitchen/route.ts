@@ -4,6 +4,22 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveStaffContext } from "@/lib/auth/staff-context";
 import { getOrderPrepTime, setOrderPrepTime, getRestaurantFeatures, getPendingApprovalItemIds } from "@/lib/platform/state";
 
+type KitchenAnalyticsCache = {
+  expiresAt: number;
+  todayTotal: number;
+  todayCompleted: number;
+  todayDishes: number;
+  dayWiseAnalytics: Array<{
+    date: string;
+    label: string;
+    totalOrders: number;
+    completedOrders: number;
+    totalDishes: number;
+  }>;
+};
+
+const kitchenAnalyticsCache = new Map<string, KitchenAnalyticsCache>();
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -57,90 +73,104 @@ export async function GET() {
       throw error;
     }
 
-    // Query recent orders for Day-wise analytics & Today stats (last 7 days)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // Cached 7-Day Analytics & Today Stats (3-minute TTL to prevent database thrashing on 3s poll)
+    const restoId = staffContext.restaurantId;
+    let analyticsData = kitchenAnalyticsCache.get(restoId);
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const now = Date.now();
+    if (!analyticsData || analyticsData.expiresAt <= now) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
 
-    const { data: recentOrdersData } = await admin
-      .from("orders")
-      .select(`
-        id,
-        status,
-        opened_at,
-        restaurant_tables (table_number),
-        order_items (id, qty, item_status, menu_items (name, is_veg))
-      `)
-      .eq("restaurant_id", staffContext.restaurantId)
-      .gte("opened_at", sevenDaysAgo.toISOString())
-      .order("opened_at", { ascending: false });
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
 
-    const recentOrders = recentOrdersData || [];
+      const { data: recentOrdersData } = await admin
+        .from("orders")
+        .select(`
+          id,
+          status,
+          opened_at,
+          restaurant_tables (table_number),
+          order_items (id, qty, item_status, menu_items (name, is_veg))
+        `)
+        .eq("restaurant_id", restoId)
+        .gte("opened_at", sevenDaysAgo.toISOString())
+        .order("opened_at", { ascending: false });
 
-    // Calculate Today stats
-    const todayOrders = recentOrders.filter((o) => new Date(o.opened_at) >= todayStart);
-    const todayTotal = todayOrders.length;
-    const todayCompleted = todayOrders.filter((o) => o.status !== "open").length;
-    const todayActive = (orders || []).length;
-    let todayDishes = 0;
-    todayOrders.forEach((o) => {
-      type RawItem = { qty: number; item_status: string };
-      const items = (o.order_items as unknown as RawItem[]) || [];
-      items.forEach((it) => {
-        if (it.item_status === "served") {
-          todayDishes += it.qty || 1;
-        }
-      });
-    });
+      const recentOrders = recentOrdersData || [];
 
-    // Group by Day (last 7 days)
-    const dayWiseMap: {
-      [key: string]: {
-        date: string;
-        label: string;
-        totalOrders: number;
-        completedOrders: number;
-        totalDishes: number;
-      };
-    } = {};
-
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      const isToday = i === 0;
-      const isYesterday = i === 1;
-      const label = isToday
-        ? "Today"
-        : isYesterday
-        ? "Yesterday"
-        : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      dayWiseMap[dateStr] = {
-        date: dateStr,
-        label,
-        totalOrders: 0,
-        completedOrders: 0,
-        totalDishes: 0,
-      };
-    }
-
-    recentOrders.forEach((o) => {
-      const dStr = new Date(o.opened_at).toISOString().split("T")[0];
-      if (dayWiseMap[dStr]) {
-        dayWiseMap[dStr].totalOrders += 1;
-        if (o.status !== "open") {
-          dayWiseMap[dStr].completedOrders += 1;
-        }
-        type RawItem = { qty: number };
+      // Calculate Today stats
+      const todayOrders = recentOrders.filter((o) => new Date(o.opened_at) >= todayStart);
+      const todayTotal = todayOrders.length;
+      const todayCompleted = todayOrders.filter((o) => o.status !== "open").length;
+      let todayDishes = 0;
+      todayOrders.forEach((o) => {
+        type RawItem = { qty: number; item_status: string };
         const items = (o.order_items as unknown as RawItem[]) || [];
         items.forEach((it) => {
-          dayWiseMap[dStr].totalDishes += it.qty || 1;
+          if (it.item_status === "served") {
+            todayDishes += it.qty || 1;
+          }
         });
+      });
+
+      // Group by Day (last 7 days)
+      const dayWiseMap: {
+        [key: string]: {
+          date: string;
+          label: string;
+          totalOrders: number;
+          completedOrders: number;
+          totalDishes: number;
+        };
+      } = {};
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split("T")[0];
+        const isToday = i === 0;
+        const isYesterday = i === 1;
+        const label = isToday
+          ? "Today"
+          : isYesterday
+          ? "Yesterday"
+          : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        dayWiseMap[dateStr] = {
+          date: dateStr,
+          label,
+          totalOrders: 0,
+          completedOrders: 0,
+          totalDishes: 0,
+        };
       }
-    });
+
+      recentOrders.forEach((o) => {
+        const dStr = new Date(o.opened_at).toISOString().split("T")[0];
+        if (dayWiseMap[dStr]) {
+          dayWiseMap[dStr].totalOrders += 1;
+          if (o.status !== "open") {
+            dayWiseMap[dStr].completedOrders += 1;
+          }
+          type RawItem = { qty: number };
+          const items = (o.order_items as unknown as RawItem[]) || [];
+          items.forEach((it) => {
+            dayWiseMap[dStr].totalDishes += it.qty || 1;
+          });
+        }
+      });
+
+      analyticsData = {
+        expiresAt: now + 3 * 60 * 1000, // 3 minutes TTL
+        todayTotal,
+        todayCompleted,
+        todayDishes,
+        dayWiseAnalytics: Object.values(dayWiseMap).reverse(),
+      };
+      kitchenAnalyticsCache.set(restoId, analyticsData);
+    }
 
     const features = getRestaurantFeatures(staffContext.restaurantId);
     const unapprovedItemIds = features.waiterOrderApproval
@@ -161,7 +191,7 @@ export async function GET() {
       })
       .filter((ord) => (ord.order_items || []).length > 0);
 
-    const dayWiseStats = Object.values(dayWiseMap);
+    const dayWiseStats = analyticsData.dayWiseAnalytics;
 
     return NextResponse.json({
       ok: true,
@@ -186,10 +216,10 @@ export async function GET() {
         };
       }),
       todayStats: {
-        totalOrders: todayTotal,
+        totalOrders: analyticsData.todayTotal,
         activeOrders: filteredOrders.length,
-        completedOrders: todayCompleted,
-        dishesCooked: todayDishes,
+        completedOrders: analyticsData.todayCompleted,
+        dishesCooked: analyticsData.todayDishes,
       },
       dayWiseStats,
     });

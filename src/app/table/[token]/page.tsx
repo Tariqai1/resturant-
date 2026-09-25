@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, use } from "react";
+import dynamic from "next/dynamic";
 import FoodChefLoader from "@/components/FoodChefLoader";
-import ScratchCardModal from "@/components/table/ScratchCardModal";
+
+const ScratchCardModal = dynamic(() => import("@/components/table/ScratchCardModal"), {
+  ssr: false,
+});
 import {
   RestaurantOfferConfig,
   DEFAULT_OFFER_CONFIG,
@@ -330,11 +334,19 @@ export default function CustomerTableOrderingPage({
     }
   }, [token]);
 
-  const loadTableData = useCallback(async () => {
+  const loadTableData = useCallback(async (statusOnly = false) => {
     try {
-      const res = await fetch(`/api/public/table/${token}`);
+      const url = statusOnly ? `/api/public/table/${token}?poll=status` : `/api/public/table/${token}`;
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to load table details");
+
+      if (data.statusOnly) {
+        setActiveOrder(data.activeOrder || null);
+        if (data.isApprovalPending !== undefined) setIsApprovalPending(Boolean(data.isApprovalPending));
+        if (data.joinedNotice !== undefined) setJoinedNotice(data.joinedNotice);
+        return;
+      }
 
       setRestaurantName(data.restaurant?.name || "Order Desk");
       setTableNumber(data.table?.table_number || "T--");
@@ -360,7 +372,9 @@ export default function CustomerTableOrderingPage({
         // ignore quota
       }
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Error connecting to restaurant.");
+      if (!statusOnly) {
+        setErrorMsg(err instanceof Error ? err.message : "Error connecting to restaurant.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -410,14 +424,14 @@ export default function CustomerTableOrderingPage({
         if (typeof document !== "undefined" && document.visibilityState === "hidden") {
           return; // Skip poll cycle if user switched tabs / locked screen
         }
-        loadTableData();
+        loadTableData(true);
       }, 3500);
     };
 
     const handleVisibilityChange = () => {
       if (typeof document !== "undefined") {
         if (document.visibilityState === "visible") {
-          loadTableData(); // Instant sync when user returns
+          loadTableData(true); // Instant lightweight sync when user returns
           startPolling();
         } else if (pollInterval) {
           clearInterval(pollInterval);

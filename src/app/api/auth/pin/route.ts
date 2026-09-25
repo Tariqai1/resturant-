@@ -215,12 +215,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ message: "No active staff found for this station" }, { status: 404 });
       }
 
-      for (const s of staffList) {
-        if (await bcrypt.compare(pin, s.pin_hash)) {
-          matchedStaff = s;
-          break;
-        }
-      }
+      const matchResults = await Promise.all(
+        staffList.map(async (s) => ({
+          staff: s,
+          isMatch: await bcrypt.compare(pin, s.pin_hash).catch(() => false),
+        }))
+      );
+      matchedStaff = matchResults.find((r) => r.isMatch)?.staff || null;
     }
 
     if (!matchedStaff) {
