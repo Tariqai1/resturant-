@@ -33,6 +33,7 @@ const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
+  orderJourneyLayout: "floating_capsule",
 };
 
 type PlatformStats = {
@@ -5172,6 +5173,117 @@ export default function SuperAdminPage() {
                       }`}
                     >
                       <div className="w-4 h-4 rounded-full bg-white shadow-sm" />
+                    </div>
+                  </div>
+
+                  {/* 4. Customer Live Order Journey Layout */}
+                  <div className="pt-2 border-t border-[#26201B] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🗺️</span>
+                        <div>
+                          <div className="font-bold text-xs leading-snug">Order Journey UX Layout</div>
+                          <div className="text-[10px] text-[#8C8275]">
+                            Customer mobile live ticket tracking view
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                        {editingRestaurant.features?.orderJourneyLayout === "split_card"
+                          ? "Side Split Card"
+                          : editingRestaurant.features?.orderJourneyLayout === "slim_accordion"
+                          ? "Slim Accordion"
+                          : "Floating Sheet (Default)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      {/* Option 1 */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingRestaurant({
+                            ...editingRestaurant,
+                            features: {
+                              ...(editingRestaurant.features || DEFAULT_RESTAURANT_FEATURES),
+                              orderJourneyLayout: "floating_capsule",
+                            },
+                          })
+                        }
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          (editingRestaurant.features?.orderJourneyLayout || "floating_capsule") === "floating_capsule"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>🚀 Floating Sheet</span>
+                          {(editingRestaurant.features?.orderJourneyLayout || "floating_capsule") === "floating_capsule" && (
+                            <span className="text-[10px] text-[#D96B27]">✓ Active</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          Bottom capsule + slide-up drawer (Zomato style, 100% clean menu)
+                        </div>
+                      </button>
+
+                      {/* Option 2 */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingRestaurant({
+                            ...editingRestaurant,
+                            features: {
+                              ...(editingRestaurant.features || DEFAULT_RESTAURANT_FEATURES),
+                              orderJourneyLayout: "split_card",
+                            },
+                          })
+                        }
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          editingRestaurant.features?.orderJourneyLayout === "split_card"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>⚖️ Side Split Card</span>
+                          {editingRestaurant.features?.orderJourneyLayout === "split_card" && (
+                            <span className="text-[10px] text-[#D96B27]">✓ Active</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          Timeline left, dishes right (Tablet & mobile responsive)
+                        </div>
+                      </button>
+
+                      {/* Option 3 */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingRestaurant({
+                            ...editingRestaurant,
+                            features: {
+                              ...(editingRestaurant.features || DEFAULT_RESTAURANT_FEATURES),
+                              orderJourneyLayout: "slim_accordion",
+                            },
+                          })
+                        }
+                        className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all ${
+                          editingRestaurant.features?.orderJourneyLayout === "slim_accordion"
+                            ? "bg-[#D96B27]/15 border-[#D96B27] text-white shadow-xs"
+                            : "bg-[#181410] border-[#2D251F] text-[#8C8275] hover:text-white"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center justify-between">
+                          <span>📐 Slim Accordion</span>
+                          {editingRestaurant.features?.orderJourneyLayout === "slim_accordion" && (
+                            <span className="text-[10px] text-[#D96B27]">✓ Active</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-[#8C8275] mt-0.5">
+                          Compact inline card with 2-line dish rows (no truncation)
+                        </div>
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -171,6 +171,15 @@
   },
   "waiterCalls": [
     {
+      "id": "call-mufu8hkjyij",
+      "tableId": "e3fed634-0b51-41f2-8ab6-3a6fc41da72f",
+      "tableNumber": "T04",
+      "restaurantId": "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5",
+      "type": "condiments",
+      "status": "active",
+      "createdAt": "2026-09-24T18:00:57.331Z"
+    },
+    {
       "id": "call-mu22xh55h8s",
       "tableId": "380de356-50d9-4847-b5ec-4094d28aaf90",
       "tableNumber": "T01",
@@ -277,5 +286,25 @@
   "orderPrepEstimates": {},
   "restaurantPhones": {},
   "dishSpecialTags": {},
-  "pendingOrderApprovals": {}
+  "pendingOrderApprovals": {
+    "batch-1790272979975-e3oon": {
+      "orderId": "bee20997-aecc-410d-b0c0-7ba531b28de2",
+      "restaurantId": "ee2ddb95-d317-4dc3-8a62-4f24cfbc77c5",
+      "tableId": "e3fed634-0b51-41f2-8ab6-3a6fc41da72f",
+      "tableNumber": "T04",
+      "customerName": "Dine-in Guest",
+      "itemIds": [
+        "f2dab76b-0aeb-41c4-adf0-9789c468290b",
+        "4bf065da-03e1-450d-96bf-ffc0db26b222",
+        "e85e1e1c-8401-4df5-9773-bbbcf721c4fc",
+        "72f66e97-c2bc-4779-ba25-5fd519002c3f",
+        "a6c950e3-34dc-49d1-8cbe-25ea1c3e8c9e"
+      ],
+      "totalAmount": 1085,
+      "totalItems": 6,
+      "id": "batch-1790272979975-e3oon",
+      "status": "awaiting_approval",
+      "createdAt": "2026-09-24T18:02:59.975Z"
+    }
+  }
 }

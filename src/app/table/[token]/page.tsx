@@ -68,6 +68,7 @@ type RestaurantFeatures = {
   feedbackReview: boolean;
   loyaltyOffers?: boolean;
   waiterOrderApproval?: boolean;
+  orderJourneyLayout?: "floating_capsule" | "split_card" | "slim_accordion";
 };
 
 function triggerHaptic(ms = 12) {
@@ -241,6 +242,21 @@ export default function CustomerTableOrderingPage({
   const [orderSuccessMsg, setOrderSuccessMsg] = useState("");
   const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [selectedJourneyStation, setSelectedJourneyStation] = useState<number | null>(null);
+  const [isJourneySheetOpen, setIsJourneySheetOpen] = useState<boolean>(false);
+  const [urlLayoutParam, setUrlLayoutParam] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const l = sp.get("layout");
+      if (l === "floating_capsule" || l === "split_card" || l === "slim_accordion") {
+        setUrlLayoutParam(l);
+      }
+    }
+  }, []);
+
+  const currentJourneyLayout: "floating_capsule" | "split_card" | "slim_accordion" =
+    (urlLayoutParam as any) || features.orderJourneyLayout || "floating_capsule";
 
 
 
@@ -1253,9 +1269,13 @@ export default function CustomerTableOrderingPage({
         <div
           onClick={() => {
             triggerHaptic(10);
-            setIsTicketExpanded(true);
-            const el = document.getElementById("live-order-journey-map");
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (currentJourneyLayout === "floating_capsule") {
+              setIsJourneySheetOpen(true);
+            } else {
+              setIsTicketExpanded(true);
+              const el = document.getElementById("live-order-journey-map");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
           }}
           className="mx-4 mt-2.5 px-3.5 py-2.5 rounded-2xl border shadow-sm cursor-pointer flex items-center justify-between transition-all hover:scale-[1.01] active:scale-[0.99] select-none"
           style={{
@@ -1779,347 +1799,473 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
-      {/* Live Order Journey Tracker: 4-Station Interactive Visual Roadmap */}
-      {activeOrder && activeOrder.order_items.length > 0 && (
-        <div
-          id="live-order-journey-map"
-          className="mx-4 mt-3 rounded-2xl border shadow-sm overflow-hidden transition-all bg-white"
-          style={{ borderColor: "var(--hairline)" }}
-        >
-          {/* Journey Header with Current Station Badge & Collapse Toggle */}
-          <div
-            onClick={() => setIsTicketExpanded(!isTicketExpanded)}
-            className="p-3.5 flex items-center justify-between cursor-pointer select-none bg-stone-50/80 border-b hover:bg-stone-100/60 transition-colors"
-            style={{ borderColor: "var(--hairline)" }}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="text-xl">
-                {activeStage === "served"
-                  ? "🍽️"
-                  : activeStage === "preparing"
-                  ? "🔥"
-                  : isApprovalPending
-                  ? "👨‍💼"
-                  : "📱"}
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
-                    Live Order Journey
-                  </span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-200 text-stone-700 font-bold">
-                    #{activeOrder.id.slice(0, 6)}
-                  </span>
-                </div>
-                <div className="text-[11px] text-stone-500 font-medium truncate">
-                  {isApprovalPending
-                    ? "Station 2: Captain verifying items at Table"
-                    : activeStage === "preparing"
-                    ? `Station 3: Cooking in Kitchen ${remainingMinutesText ? `(${remainingMinutesText})` : ""}`
-                    : activeStage === "served"
-                    ? "Station 4: All dishes served hot!"
-                    : "Station 1: Order captured at Table"}
-                </div>
-              </div>
-            </div>
+      {/* Live Order Journey Tracker: Multi-Mode Responsive Roadmap */}
+      {activeOrder && activeOrder.order_items.length > 0 && (() => {
+        const orderTotal = activeOrder.order_items.reduce(
+          (sum, it) => sum + Number(it.unit_price) * Number(it.qty),
+          0
+        );
 
-            <div className="flex items-center gap-2 shrink-0">
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
-                style={{
-                  backgroundColor:
-                    activeStage === "served"
-                      ? "#E8F5E9"
-                      : activeStage === "preparing"
-                      ? "#EFF6FF"
-                      : isApprovalPending
-                      ? "#FFFBEB"
-                      : "#F3F4F6",
-                  color:
-                    activeStage === "served"
-                      ? "#15803D"
-                      : activeStage === "preparing"
-                      ? "#1D4ED8"
-                      : isApprovalPending
-                      ? "#B45309"
-                      : "#374151",
-                }}
-              >
-                {activeStage === "served"
-                  ? "Served"
-                  : activeStage === "preparing"
-                  ? "Cooking"
-                  : isApprovalPending
-                  ? "Verifying"
-                  : "Placed"}
-              </span>
-              <span className="text-xs font-bold text-stone-400">
-                {isTicketExpanded ? "▴" : "▾"}
-              </span>
-            </div>
-          </div>
-
-          {/* Visual 4-Station Travel Roadmap */}
-          <div className="p-4 space-y-4">
-            <div className="relative py-2">
-              {/* Connecting Track Line */}
-              <div className="absolute left-6 right-6 top-6 h-1.5 bg-stone-200 rounded-full -z-0" />
-              {/* Active Progress Track Line */}
-              <div
-                className="absolute left-6 top-6 h-1.5 bg-gradient-to-r from-emerald-500 via-amber-500 to-sky-500 rounded-full transition-all duration-700 -z-0"
-                style={{
-                  width:
-                    activeStage === "served"
-                      ? "calc(100% - 3rem)"
-                      : activeStage === "preparing"
-                      ? "66%"
-                      : isApprovalPending
-                      ? "33%"
-                      : "12%",
-                }}
-              />
-
-              {/* 4 Interactive Stations */}
-              <div className="relative flex items-start justify-between z-10">
-                {/* Station 1: Your Table */}
-                <div
-                  onClick={() => setSelectedJourneyStation(1)}
-                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
-                >
-                  <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-md ring-4 ring-emerald-100 transition-transform group-hover:scale-110">
-                    ✓
-                  </div>
-                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
-                    Your Table
-                  </span>
-                  <span className="text-[9px] text-emerald-700 font-bold">Placed</span>
-                </div>
-
-                {/* Station 2: Floor Captain */}
-                <div
-                  onClick={() => setSelectedJourneyStation(2)}
-                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
-                >
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
-                      activeStage === "preparing" || activeStage === "served"
-                        ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
-                        : isApprovalPending
-                        ? "bg-amber-500 text-stone-900 ring-4 ring-amber-200 animate-radar-wave"
-                        : "bg-emerald-600 text-white ring-4 ring-emerald-100"
-                    }`}
-                  >
-                    {activeStage === "preparing" || activeStage === "served" || !isApprovalPending ? "✓" : "👨‍💼"}
-                  </div>
-                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
-                    Captain
-                  </span>
-                  <span
-                    className={`text-[9px] font-bold ${
-                      isApprovalPending ? "text-amber-700 animate-pulse" : "text-emerald-700"
-                    }`}
-                  >
-                    {isApprovalPending ? "Verifying" : "Approved"}
-                  </span>
-                </div>
-
-                {/* Station 3: Kitchen Rail */}
-                <div
-                  onClick={() => setSelectedJourneyStation(3)}
-                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
-                >
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
-                      activeStage === "served"
-                        ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
-                        : activeStage === "preparing"
-                        ? "bg-blue-600 text-white ring-4 ring-blue-200 animate-radar-wave"
-                        : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
-                    }`}
-                  >
-                    {activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "👨‍🍳"}
-                  </div>
-                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
-                    Kitchen
-                  </span>
-                  <span
-                    className={`text-[9px] font-bold ${
-                      activeStage === "preparing"
-                        ? "text-blue-700 animate-pulse"
-                        : activeStage === "served"
-                        ? "text-emerald-700"
-                        : "text-stone-400"
-                    }`}
-                  >
-                    {activeStage === "preparing"
-                      ? remainingMinutesText
-                        ? `${remainingMinutesText}`
-                        : "Cooking"
-                      : activeStage === "served"
-                      ? "Cooked"
-                      : "Pending"}
-                  </span>
-                </div>
-
-                {/* Station 4: Table Served */}
-                <div
-                  onClick={() => setSelectedJourneyStation(4)}
-                  className="flex flex-col items-center cursor-pointer group w-16 text-center"
-                >
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all group-hover:scale-110 ${
-                      activeStage === "served"
-                        ? "bg-emerald-600 text-white ring-4 ring-emerald-200 animate-bounce"
-                        : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
-                    }`}
-                  >
-                    {activeStage === "served" ? "✨" : "🍽️"}
-                  </div>
-                  <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">
-                    Served
-                  </span>
-                  <span
-                    className={`text-[9px] font-bold ${
-                      activeStage === "served" ? "text-emerald-700" : "text-stone-400"
-                    }`}
-                  >
-                    {activeStage === "served" ? "At Table" : "Final"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Dynamic Station Narrative Box */}
+        const renderOrderItemCards = () =>
+          activeOrder.order_items.map((it) => (
             <div
-              className="p-3 rounded-xl border flex items-start gap-2.5 transition-all text-xs"
-              style={{
-                backgroundColor: isApprovalPending
-                  ? "#FFFBEB"
-                  : activeStage === "preparing"
-                  ? "#EFF6FF"
-                  : activeStage === "served"
-                  ? "#F0FDF4"
-                  : "#FAF8F5",
-                borderColor: isApprovalPending
-                  ? "#FDE68A"
-                  : activeStage === "preparing"
-                  ? "#BFDBFE"
-                  : activeStage === "served"
-                  ? "#BBF7D0"
-                  : "var(--hairline)",
-              }}
+              key={it.id}
+              className="p-2.5 rounded-xl bg-stone-50/90 border border-stone-200/90 hover:border-stone-300 transition-all text-xs space-y-1.5"
             >
-              <span className="text-xl shrink-0 mt-0.5">
-                {isApprovalPending
-                  ? "👨‍💼"
-                  : activeStage === "preparing"
-                  ? "🍳"
-                  : activeStage === "served"
-                  ? "🎉"
-                  : "📍"}
-              </span>
-              <div>
-                <div className="font-heading font-black text-xs text-stone-900 mb-0.5">
-                  {isApprovalPending
-                    ? `Captain Verification at Table ${tableNumber}`
-                    : activeStage === "preparing"
-                    ? `Chef is Cooking in the Kitchen`
-                    : activeStage === "served"
-                    ? `All Dishes Delivered to Table ${tableNumber}!`
-                    : `Order Dispatched from Table ${tableNumber}`}
+              {/* Line 1: Veg indicator + Full Dish Name (100% width, no truncation) + Item Price */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className={`${it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} shrink-0 mt-0.5`} />
+                  <span className="font-bold text-stone-900 text-xs sm:text-sm leading-snug break-words">
+                    {it.menu_items?.name || "Dish"}
+                  </span>
                 </div>
-                <div className="text-[11px] text-stone-600 leading-relaxed">
-                  {isApprovalPending
-                    ? "Our floor captain is reviewing the order items with you before sending the fire ticket (KOT) to the kitchen stoves."
-                    : activeStage === "preparing"
-                    ? `The kitchen station has fired your ticket and is preparing dishes fresh.${
-                        remainingMinutesText ? ` Target cooking time: ${remainingMinutesText} remaining.` : ""
-                      }`
-                    : activeStage === "served"
-                    ? "Hope you enjoy your meal! Need extra dips, water, or the bill? Tap 'Call Waiter' or request bill settlement anytime."
-                    : "Order has been registered from your phone. Traveling to the service captain."}
-                </div>
-              </div>
-            </div>
-
-            {/* Mystery Scratch Reward Card prompt when food is served */}
-            {activeStage === "served" && features.loyaltyOffers !== false && (
-              <div
-                onClick={() => {
-                  triggerHaptic(18);
-                  setIsScratchModalOpen(true);
-                }}
-                className="p-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 border border-amber-500 text-stone-900 shadow-md cursor-pointer active:scale-98 transition-transform flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-2xl animate-bounce">🎁</span>
-                  <div className="text-left">
-                    <div className="text-xs font-black leading-tight">Scratch Mystery Voucher!</div>
-                    <div className="text-[10px] font-medium text-amber-950">
-                      {offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit"}
-                    </div>
-                  </div>
-                </div>
-                <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-stone-900 text-amber-300 shadow-xs flex items-center gap-1">
-                  <span>Scratch</span>
-                  <span>➔</span>
+                <span className="font-mono font-black text-stone-900 text-xs sm:text-sm shrink-0 whitespace-nowrap">
+                  ₹{Number(it.unit_price) * Number(it.qty)}
                 </span>
               </div>
-            )}
 
-            {/* Collapsible Ordered Items List with 1-Tap Repeat */}
-            {isTicketExpanded && (
-              <div className="pt-3 border-t border-dashed space-y-2" style={{ borderColor: "var(--hairline)" }}>
-                <div className="text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider flex items-center justify-between">
-                  <span>Dishes in this order ({activeOrder.order_items.length}):</span>
-                  <span className="text-[9px] text-stone-400">Tap + Repeat to add more</span>
+              {/* Line 2: Quantity, Unit Price, Status Badge, and 1-Tap Repeat Button */}
+              <div className="flex items-center justify-between pt-1 border-t border-stone-200/50 text-[11px]">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold text-stone-600 bg-stone-200/60 px-1.5 py-0.5 rounded text-[10px]">
+                    {it.qty}×
+                  </span>
+                  {it.item_status === "served" ? (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                      <span>✓</span> Ready
+                    </span>
+                  ) : it.item_status === "preparing" ? (
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-300 animate-pulse flex items-center gap-1 shrink-0">
+                      <span>🔥</span> Cooking
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shrink-0">
+                      <span>⏳</span> Queued
+                    </span>
+                  )}
+                  <span className="text-[10px] text-stone-400 font-mono">
+                    (₹{it.unit_price}/ea)
+                  </span>
                 </div>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {activeOrder.order_items.map((it) => (
-                    <div
-                      key={it.id}
-                      className="p-2 rounded-lg bg-stone-50 border border-stone-200/80 flex items-center justify-between text-xs"
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                        <span className={it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} />
-                        <span className="font-bold text-stone-800 truncate">
-                          {it.qty}× {it.menu_items?.name || "Dish"}
-                        </span>
-                        {it.item_status === "served" ? (
-                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
-                            <span>✓</span> Ready
-                          </span>
-                        ) : it.item_status === "preparing" ? (
-                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 animate-pulse flex items-center gap-1 shrink-0">
-                            <span>🔥</span> Cooking
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
-                            <span>⏳</span> Queued
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <span className="font-mono font-black text-stone-900">
-                          ₹{Number(it.unit_price) * Number(it.qty)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleReorderItem(it)}
-                          className="px-2 py-1 rounded text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-2xs transition-transform active:scale-95"
-                          style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
-                        >
-                          + Repeat
-                        </button>
-                      </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleReorderItem(it)}
+                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-2xs transition-transform active:scale-95 flex items-center gap-1"
+                  style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
+                >
+                  <span>+</span> Repeat
+                </button>
+              </div>
+            </div>
+          ));
+
+        return (
+          <>
+            {/* ========================================================================= */}
+            {/* OPTION 1: FLOATING BOTTOM CAPSULE + SLIDE-UP SHEET (INLINE COMPACT STRIP) */}
+            {/* ========================================================================= */}
+            {currentJourneyLayout === "floating_capsule" && (
+              <div
+                id="live-order-journey-map"
+                onClick={() => {
+                  triggerHaptic(10);
+                  setIsJourneySheetOpen(true);
+                }}
+                className="mx-4 mt-3 p-3.5 rounded-2xl border shadow-xs flex items-center justify-between cursor-pointer select-none bg-white hover:bg-stone-50/80 transition-all active:scale-[0.99]"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-2xl shrink-0">
+                    {activeStage === "served"
+                      ? "🍽️"
+                      : activeStage === "preparing"
+                      ? "🔥"
+                      : isApprovalPending
+                      ? "👨‍💼"
+                      : "📱"}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
+                        Live Order Journey
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-100 text-stone-700 font-bold">
+                        #{activeOrder.id.slice(0, 6)}
+                      </span>
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase"
+                        style={{
+                          backgroundColor:
+                            isApprovalPending ? "#FFFBEB" : activeStage === "preparing" ? "#EFF6FF" : activeStage === "served" ? "#E8F5E9" : "#F3F4F6",
+                          color:
+                            isApprovalPending ? "#B45309" : activeStage === "preparing" ? "#1D4ED8" : activeStage === "served" ? "#15803D" : "#374151",
+                        }}
+                      >
+                        {isApprovalPending ? "Verifying" : activeStage === "preparing" ? "Cooking" : activeStage === "served" ? "Served" : "Placed"}
+                      </span>
                     </div>
-                  ))}
+                    <div className="text-[11px] text-stone-500 font-medium truncate mt-0.5">
+                      {isApprovalPending
+                        ? "Floor Captain is reviewing order at Table"
+                        : activeStage === "preparing"
+                        ? `Chef cooking in Kitchen ${remainingMinutesText ? `(${remainingMinutesText})` : ""}`
+                        : activeStage === "served"
+                        ? "All dishes served hot & fresh!"
+                        : "Order captured at Table"}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="text-[11px] font-bold px-3 py-1.5 rounded-xl border flex items-center gap-1 shrink-0 shadow-2xs"
+                  style={{
+                    backgroundColor: "var(--rust-soft, #FFF8E7)",
+                    borderColor: "var(--rust, #D96B27)",
+                    color: "var(--rust, #D96B27)",
+                  }}
+                >
+                  <span>Track</span>
+                  <span>▴</span>
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
+
+            {/* ========================================================================= */}
+            {/* OPTION 2: SIDE-BY-SIDE SPLIT CARD (TABLET & MOBILE RESPONSIVE DUAL COLUMNS)*/}
+            {/* ========================================================================= */}
+            {currentJourneyLayout === "split_card" && (
+              <div
+                id="live-order-journey-map"
+                className="mx-4 mt-3 rounded-2xl border shadow-sm overflow-hidden bg-white"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <div
+                  className="p-3.5 bg-stone-50/80 border-b flex items-center justify-between"
+                  style={{ borderColor: "var(--hairline)" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">
+                      {activeStage === "served" ? "🍽️" : activeStage === "preparing" ? "🔥" : isApprovalPending ? "👨‍💼" : "📱"}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
+                        Live Order Journey
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-200 text-stone-700 font-bold">
+                        #{activeOrder.id.slice(0, 6)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+                    style={{
+                      backgroundColor:
+                        isApprovalPending ? "#FFFBEB" : activeStage === "preparing" ? "#EFF6FF" : activeStage === "served" ? "#E8F5E9" : "#F3F4F6",
+                      color:
+                        isApprovalPending ? "#B45309" : activeStage === "preparing" ? "#1D4ED8" : activeStage === "served" ? "#15803D" : "#374151",
+                    }}
+                  >
+                    {isApprovalPending ? "Verifying" : activeStage === "preparing" ? "Cooking" : activeStage === "served" ? "Served" : "Placed"}
+                  </span>
+                </div>
+
+                <div className="p-4 grid grid-cols-1 md:grid-cols-12 gap-4">
+                  {/* Left Column: Timeline & Station Status */}
+                  <div className="md:col-span-5 flex flex-col justify-between space-y-4 p-3.5 rounded-xl bg-stone-50/60 border border-stone-200/70">
+                    <div>
+                      <div className="text-[10px] font-mono font-bold text-stone-500 uppercase tracking-wider mb-2.5">
+                        Station Roadmap
+                      </div>
+                      <div className="space-y-3 relative pl-6 before:content-[''] before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-stone-200">
+                        {/* 1. Table */}
+                        <div className="relative flex items-center gap-2.5">
+                          <span className="absolute -left-6 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ring-emerald-100">
+                            ✓
+                          </span>
+                          <div>
+                            <div className="text-xs font-black text-stone-900 leading-tight">Your Table</div>
+                            <div className="text-[10px] text-emerald-700 font-semibold">Order Placed</div>
+                          </div>
+                        </div>
+
+                        {/* 2. Captain */}
+                        <div className="relative flex items-center gap-2.5">
+                          <span
+                            className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ${
+                              activeStage === "preparing" || activeStage === "served"
+                                ? "bg-emerald-600 text-white ring-emerald-100"
+                                : isApprovalPending
+                                ? "bg-amber-500 text-stone-900 ring-amber-200 animate-pulse"
+                                : "bg-emerald-600 text-white ring-emerald-100"
+                            }`}
+                          >
+                            {activeStage === "preparing" || activeStage === "served" || !isApprovalPending ? "✓" : "👨‍💼"}
+                          </span>
+                          <div>
+                            <div className="text-xs font-black text-stone-900 leading-tight">Floor Captain</div>
+                            <div
+                              className={`text-[10px] font-semibold ${
+                                isApprovalPending ? "text-amber-700 font-bold" : "text-emerald-700"
+                              }`}
+                            >
+                              {isApprovalPending ? "Verifying Items..." : "Approved"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. Kitchen */}
+                        <div className="relative flex items-center gap-2.5">
+                          <span
+                            className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ${
+                              activeStage === "served"
+                                ? "bg-emerald-600 text-white ring-emerald-100"
+                                : activeStage === "preparing"
+                                ? "bg-blue-600 text-white ring-blue-200 animate-pulse"
+                                : "bg-stone-200 text-stone-500 ring-stone-100"
+                            }`}
+                          >
+                            {activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "3"}
+                          </span>
+                          <div>
+                            <div className="text-xs font-black text-stone-900 leading-tight">Kitchen Stoves</div>
+                            <div
+                              className={`text-[10px] font-semibold ${
+                                activeStage === "preparing"
+                                  ? "text-blue-700 font-bold"
+                                  : activeStage === "served"
+                                  ? "text-emerald-700"
+                                  : "text-stone-400"
+                              }`}
+                            >
+                              {activeStage === "preparing"
+                                ? remainingMinutesText ? `Cooking (${remainingMinutesText})` : "Cooking"
+                                : activeStage === "served"
+                                ? "Cooked"
+                                : "Pending KOT"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 4. Served */}
+                        <div className="relative flex items-center gap-2.5">
+                          <span
+                            className={`absolute -left-6 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ring-2 ${
+                              activeStage === "served"
+                                ? "bg-emerald-600 text-white ring-emerald-200"
+                                : "bg-stone-200 text-stone-500 ring-stone-100"
+                            }`}
+                          >
+                            {activeStage === "served" ? "✨" : "4"}
+                          </span>
+                          <div>
+                            <div className="text-xs font-black text-stone-900 leading-tight">Table Served</div>
+                            <div
+                              className={`text-[10px] font-semibold ${
+                                activeStage === "served" ? "text-emerald-700" : "text-stone-400"
+                              }`}
+                            >
+                              {activeStage === "served" ? "Delivered Hot" : "Final Stage"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white border border-stone-200/80 text-[11px] text-stone-600 leading-relaxed">
+                      {isApprovalPending
+                        ? `Captain is reviewing items at Table ${tableNumber} before sending KOT.`
+                        : activeStage === "preparing"
+                        ? `Kitchen is preparing dishes fresh.${remainingMinutesText ? ` Target time: ${remainingMinutesText}.` : ""}`
+                        : activeStage === "served"
+                        ? `All dishes served hot at Table ${tableNumber}. Enjoy your meal!`
+                        : `Order registered from Table ${tableNumber}.`}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Dishes in Ticket */}
+                  <div className="md:col-span-7 flex flex-col justify-between space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-stone-700 pb-1 border-b border-stone-200/60">
+                      <span>Dishes in Ticket ({activeOrder.order_items.length})</span>
+                      <span className="font-mono text-stone-900 font-black">
+                        Total: ₹{orderTotal}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {renderOrderItemCards()}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic(8);
+                        const el = document.getElementById("menu-catalog-start");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="w-full py-2 px-3 rounded-lg text-xs font-bold border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-700 cursor-pointer flex items-center justify-center gap-1 transition-colors"
+                    >
+                      <span>+ Add Extra Dishes to Table</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* OPTION 3: ULTRA-SLIM INLINE ACCORDION (SINGLE COMPACT CARD WITH 2-LINE)   */}
+            {/* ========================================================================= */}
+            {currentJourneyLayout === "slim_accordion" && (
+              <div
+                id="live-order-journey-map"
+                className="mx-4 mt-3 rounded-2xl border shadow-sm overflow-hidden bg-white"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <div
+                  onClick={() => setIsTicketExpanded(!isTicketExpanded)}
+                  className="p-3 flex items-center justify-between cursor-pointer select-none bg-stone-50/80 border-b hover:bg-stone-100/60 transition-colors"
+                  style={{ borderColor: "var(--hairline)" }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-xl">
+                      {activeStage === "served" ? "🍽️" : activeStage === "preparing" ? "🔥" : isApprovalPending ? "👨‍💼" : "📱"}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
+                          Live Order Journey
+                        </span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-200 text-stone-700 font-bold">
+                          #{activeOrder.id.slice(0, 6)}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-stone-500 font-medium truncate">
+                        {activeOrder.order_items.length} dishes • {isApprovalPending ? "Captain Verifying" : activeStage === "preparing" ? "Cooking in Kitchen" : activeStage === "served" ? "Served" : "Placed"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
+                      style={{
+                        backgroundColor:
+                          isApprovalPending ? "#FFFBEB" : activeStage === "preparing" ? "#EFF6FF" : activeStage === "served" ? "#E8F5E9" : "#F3F4F6",
+                        color:
+                          isApprovalPending ? "#B45309" : activeStage === "preparing" ? "#1D4ED8" : activeStage === "served" ? "#15803D" : "#374151",
+                      }}
+                    >
+                      {isApprovalPending ? "Verifying" : activeStage === "preparing" ? "Cooking" : activeStage === "served" ? "Served" : "Placed"}
+                    </span>
+                    <span className="text-xs font-bold text-stone-400">
+                      {isTicketExpanded ? "▴" : "▾"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 space-y-3">
+                  {/* Slim Progress Bar */}
+                  <div className="relative py-1">
+                    <div className="absolute left-4 right-4 top-3.5 h-1 bg-stone-200 rounded-full" />
+                    <div
+                      className="absolute left-4 top-3.5 h-1 bg-gradient-to-r from-emerald-500 via-amber-500 to-sky-500 rounded-full transition-all duration-700"
+                      style={{
+                        width:
+                          activeStage === "served"
+                            ? "calc(100% - 2rem)"
+                            : activeStage === "preparing"
+                            ? "66%"
+                            : isApprovalPending
+                            ? "33%"
+                            : "12%",
+                      }}
+                    />
+
+                    <div className="relative flex items-start justify-between z-10">
+                      <div className="flex flex-col items-center w-14 text-center">
+                        <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-black shadow-xs">
+                          ✓
+                        </div>
+                        <span className="text-[9px] font-bold mt-1 text-stone-800">Table</span>
+                      </div>
+
+                      <div className="flex flex-col items-center w-14 text-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ${
+                            activeStage === "preparing" || activeStage === "served"
+                              ? "bg-emerald-600 text-white"
+                              : isApprovalPending
+                              ? "bg-amber-500 text-stone-900 animate-pulse"
+                              : "bg-emerald-600 text-white"
+                          }`}
+                        >
+                          {activeStage === "preparing" || activeStage === "served" || !isApprovalPending ? "✓" : "👨‍💼"}
+                        </div>
+                        <span className="text-[9px] font-bold mt-1 text-stone-800">Captain</span>
+                      </div>
+
+                      <div className="flex flex-col items-center w-14 text-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ${
+                            activeStage === "served"
+                              ? "bg-emerald-600 text-white"
+                              : activeStage === "preparing"
+                              ? "bg-blue-600 text-white animate-pulse"
+                              : "bg-stone-200 text-stone-500"
+                          }`}
+                        >
+                          {activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "3"}
+                        </div>
+                        <span className="text-[9px] font-bold mt-1 text-stone-800">Kitchen</span>
+                      </div>
+
+                      <div className="flex flex-col items-center w-14 text-center">
+                        <div
+                          className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shadow-xs ${
+                            activeStage === "served" ? "bg-emerald-600 text-white" : "bg-stone-200 text-stone-500"
+                          }`}
+                        >
+                          {activeStage === "served" ? "✨" : "4"}
+                        </div>
+                        <span className="text-[9px] font-bold mt-1 text-stone-800">Served</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2 px-3 rounded-lg bg-stone-50 border border-stone-200 text-[11px] text-stone-600 flex items-center justify-between">
+                    <span>
+                      {isApprovalPending
+                        ? `👨‍💼 Floor captain reviewing items at Table ${tableNumber}`
+                        : activeStage === "preparing"
+                        ? `🔥 Chef cooking dishes in Kitchen${remainingMinutesText ? ` (${remainingMinutesText})` : ""}`
+                        : activeStage === "served"
+                        ? `🍽️ All dishes delivered to Table ${tableNumber}!`
+                        : `📱 Order captured at Table ${tableNumber}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTicketExpanded(!isTicketExpanded)}
+                      className="text-[10px] font-bold text-stone-500 underline ml-2 cursor-pointer whitespace-nowrap"
+                    >
+                      {isTicketExpanded ? "Hide Dishes" : `View Dishes (${activeOrder.order_items.length})`}
+                    </button>
+                  </div>
+
+                  {isTicketExpanded && (
+                    <div className="pt-2 border-t border-dashed space-y-2" style={{ borderColor: "var(--hairline)" }}>
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                        {renderOrderItemCards()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Post-Meal Dining Feedback & Google Review Booster */}
       {features.feedbackReview && activeStage === "served" && (
@@ -2920,6 +3066,115 @@ export default function CustomerTableOrderingPage({
         </div>
       )}
 
+      {/* Floating Order Journey Capsule (Zomato / Swiggy Mode) */}
+      {activeOrder &&
+        activeOrder.order_items.length > 0 &&
+        currentJourneyLayout === "floating_capsule" &&
+        !isJourneySheetOpen &&
+        !isReviewOpen &&
+        !isCallModalOpen && (
+          <div
+            className={`fixed left-4 right-4 z-40 max-w-md mx-auto pointer-events-none transition-all duration-300 ${
+              totalCartCount > 0 ? "bottom-20" : "bottom-4"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic(12);
+                setIsJourneySheetOpen(true);
+              }}
+              className="w-full p-2.5 sm:p-3 rounded-2xl shadow-2xl flex items-center justify-between cursor-pointer pointer-events-auto border backdrop-blur-md transition-all active:scale-[0.98]"
+              style={{
+                backgroundColor: "rgba(24, 20, 16, 0.95)",
+                borderColor: isApprovalPending
+                  ? "rgba(245, 158, 11, 0.5)"
+                  : activeStage === "preparing"
+                  ? "rgba(59, 130, 246, 0.5)"
+                  : activeStage === "served"
+                  ? "rgba(16, 185, 129, 0.5)"
+                  : "rgba(217, 107, 39, 0.5)",
+                color: "#FFFFFF",
+                boxShadow: "0 10px 30px -4px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-base shrink-0 shadow-xs"
+                  style={{
+                    backgroundColor: isApprovalPending
+                      ? "rgba(245, 158, 11, 0.2)"
+                      : activeStage === "preparing"
+                      ? "rgba(59, 130, 246, 0.2)"
+                      : activeStage === "served"
+                      ? "rgba(16, 185, 129, 0.2)"
+                      : "rgba(217, 107, 39, 0.2)",
+                    border: "1px solid",
+                    borderColor: isApprovalPending
+                      ? "rgba(245, 158, 11, 0.4)"
+                      : activeStage === "preparing"
+                      ? "rgba(59, 130, 246, 0.4)"
+                      : activeStage === "served"
+                      ? "rgba(16, 185, 129, 0.4)"
+                      : "rgba(217, 107, 39, 0.4)",
+                  }}
+                >
+                  {activeStage === "served"
+                    ? "🍽️"
+                    : activeStage === "preparing"
+                    ? "🔥"
+                    : isApprovalPending
+                    ? "👨‍💼"
+                    : "📱"}
+                </div>
+                <div className="min-w-0 text-left">
+                  <div className="text-xs font-black tracking-wide flex items-center gap-1.5 text-stone-100">
+                    <span className="truncate">
+                      {isApprovalPending
+                        ? "Captain Verifying Order"
+                        : activeStage === "preparing"
+                        ? "Chef Cooking in Kitchen"
+                        : activeStage === "served"
+                        ? "Dishes Served at Table"
+                        : "Order Registered"}
+                    </span>
+                    {activeStage === "preparing" && remainingMinutesText && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-200 border border-blue-500/40 font-bold shrink-0">
+                        ⏳ {remainingMinutesText}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-stone-400 truncate">
+                    Table {tableNumber} • {activeOrder.order_items.length} items (₹
+                    {activeOrder.order_items.reduce(
+                      (s, it) => s + Number(it.unit_price) * Number(it.qty),
+                      0
+                    )}
+                    )
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="flex items-center gap-1 shrink-0 text-[11px] font-black px-3 py-1.5 rounded-xl shadow-xs"
+                style={{
+                  backgroundColor: isApprovalPending
+                    ? "#D97706"
+                    : activeStage === "preparing"
+                    ? "#2563EB"
+                    : activeStage === "served"
+                    ? "#059669"
+                    : "#D96B27",
+                  color: "#FFFFFF",
+                }}
+              >
+                <span>Track</span>
+                <span className="text-xs">▴</span>
+              </div>
+            </button>
+          </div>
+        )}
+
       {/* Floating Category Jump Button (Swiggy / Zomato style) */}
       {!isReviewOpen && !isCallModalOpen && (
         <button
@@ -2929,7 +3184,16 @@ export default function CustomerTableOrderingPage({
             setIsCategorySheetOpen(true);
           }}
           className={`fixed z-40 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-2xl active:scale-95 transition-all cursor-pointer border backdrop-blur ${
-            totalCartCount > 0 ? "bottom-20 left-4" : "bottom-5 left-4"
+            activeOrder &&
+            activeOrder.order_items.length > 0 &&
+            currentJourneyLayout === "floating_capsule" &&
+            !isJourneySheetOpen
+              ? totalCartCount > 0
+                ? "bottom-36 left-4"
+                : "bottom-20 left-4"
+              : totalCartCount > 0
+              ? "bottom-20 left-4"
+              : "bottom-5 left-4"
           }`}
           style={{
             backgroundColor: "rgba(31, 41, 55, 0.95)",
@@ -2955,7 +3219,16 @@ export default function CustomerTableOrderingPage({
             setIsCallModalOpen(true);
           }}
           className={`fixed z-40 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-2xl active:scale-95 transition-all cursor-pointer border ${
-            totalCartCount > 0 ? "bottom-20 right-4" : "bottom-5 right-4"
+            activeOrder &&
+            activeOrder.order_items.length > 0 &&
+            currentJourneyLayout === "floating_capsule" &&
+            !isJourneySheetOpen
+              ? totalCartCount > 0
+                ? "bottom-36 right-4"
+                : "bottom-20 right-4"
+              : totalCartCount > 0
+              ? "bottom-20 right-4"
+              : "bottom-5 right-4"
           }`}
           style={{
             backgroundColor: "#1F2937",
@@ -2970,6 +3243,342 @@ export default function CustomerTableOrderingPage({
           </span>
         </button>
       )}
+
+      {/* Slide-Up Bottom Sheet Drawer for Live Order Journey (Mode 1: floating_capsule) */}
+      {isJourneySheetOpen && activeOrder && activeOrder.order_items.length > 0 && (() => {
+        const orderTotal = activeOrder.order_items.reduce(
+          (sum, it) => sum + Number(it.unit_price) * Number(it.qty),
+          0
+        );
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm animate-fade-in p-0 sm:p-4"
+            style={{ backgroundColor: "rgba(20, 16, 12, 0.65)" }}
+            onClick={() => setIsJourneySheetOpen(false)}
+          >
+            <div
+              className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-slide-up"
+              style={{ borderColor: "var(--hairline)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Top Drag Handle */}
+              <div className="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mt-3 mb-1 shrink-0" />
+
+              {/* Sheet Header */}
+              <div
+                className="p-4 border-b flex items-center justify-between bg-stone-50/80"
+                style={{ borderColor: "var(--hairline)" }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">
+                    {activeStage === "served"
+                      ? "🍽️"
+                      : activeStage === "preparing"
+                      ? "🔥"
+                      : isApprovalPending
+                      ? "👨‍💼"
+                      : "📱"}
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-heading text-xs font-black uppercase tracking-wider text-stone-900">
+                        Live Order Journey
+                      </span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-200 text-stone-800 font-bold">
+                        #{activeOrder.id.slice(0, 6)}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-stone-500 font-medium">
+                      Table {tableNumber} • {activeOrder.order_items.length} dishes (₹{orderTotal})
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase"
+                    style={{
+                      backgroundColor:
+                        isApprovalPending ? "#FFFBEB" : activeStage === "preparing" ? "#EFF6FF" : activeStage === "served" ? "#E8F5E9" : "#F3F4F6",
+                      color:
+                        isApprovalPending ? "#B45309" : activeStage === "preparing" ? "#1D4ED8" : activeStage === "served" ? "#15803D" : "#374151",
+                    }}
+                  >
+                    {isApprovalPending ? "Verifying" : activeStage === "preparing" ? "Cooking" : activeStage === "served" ? "Served" : "Placed"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsJourneySheetOpen(false)}
+                    className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Content */}
+              <div className="p-4 overflow-y-auto space-y-4">
+                {/* 4-Station Stepper Roadmap */}
+                <div className="relative py-2">
+                  <div className="absolute left-6 right-6 top-6 h-1.5 bg-stone-200 rounded-full" />
+                  <div
+                    className="absolute left-6 top-6 h-1.5 bg-gradient-to-r from-emerald-500 via-amber-500 to-sky-500 rounded-full transition-all duration-700"
+                    style={{
+                      width:
+                        activeStage === "served"
+                          ? "calc(100% - 3rem)"
+                          : activeStage === "preparing"
+                          ? "66%"
+                          : isApprovalPending
+                          ? "33%"
+                          : "12%",
+                    }}
+                  />
+
+                  <div className="relative flex items-start justify-between z-10">
+                    {/* Station 1: Your Table */}
+                    <div className="flex flex-col items-center w-16 text-center">
+                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-black shadow-md ring-4 ring-emerald-100">
+                        ✓
+                      </div>
+                      <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">Your Table</span>
+                      <span className="text-[9px] text-emerald-700 font-bold">Placed</span>
+                    </div>
+
+                    {/* Station 2: Captain */}
+                    <div className="flex flex-col items-center w-16 text-center">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all ${
+                          activeStage === "preparing" || activeStage === "served"
+                            ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                            : isApprovalPending
+                            ? "bg-amber-500 text-stone-900 ring-4 ring-amber-200 animate-pulse"
+                            : "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                        }`}
+                      >
+                        {activeStage === "preparing" || activeStage === "served" || !isApprovalPending ? "✓" : "👨‍💼"}
+                      </div>
+                      <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">Captain</span>
+                      <span
+                        className={`text-[9px] font-bold ${
+                          isApprovalPending ? "text-amber-700 animate-pulse" : "text-emerald-700"
+                        }`}
+                      >
+                        {isApprovalPending ? "Verifying" : "Approved"}
+                      </span>
+                    </div>
+
+                    {/* Station 3: Kitchen */}
+                    <div className="flex flex-col items-center w-16 text-center">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all ${
+                          activeStage === "served"
+                            ? "bg-emerald-600 text-white ring-4 ring-emerald-100"
+                            : activeStage === "preparing"
+                            ? "bg-blue-600 text-white ring-4 ring-blue-200 animate-pulse"
+                            : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                        }`}
+                      >
+                        {activeStage === "served" ? "✓" : activeStage === "preparing" ? "🔥" : "👨‍🍳"}
+                      </div>
+                      <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">Kitchen</span>
+                      <span
+                        className={`text-[9px] font-bold ${
+                          activeStage === "preparing"
+                            ? "text-blue-700 font-bold"
+                            : activeStage === "served"
+                            ? "text-emerald-700"
+                            : "text-stone-400"
+                        }`}
+                      >
+                        {activeStage === "preparing"
+                          ? remainingMinutesText ? `${remainingMinutesText}` : "Cooking"
+                          : activeStage === "served" ? "Cooked" : "Pending"}
+                      </span>
+                    </div>
+
+                    {/* Station 4: Served */}
+                    <div className="flex flex-col items-center w-16 text-center">
+                      <div
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black shadow-md transition-all ${
+                          activeStage === "served"
+                            ? "bg-emerald-600 text-white ring-4 ring-emerald-200 animate-bounce"
+                            : "bg-stone-200 text-stone-500 ring-2 ring-stone-100"
+                        }`}
+                      >
+                        {activeStage === "served" ? "✨" : "🍽️"}
+                      </div>
+                      <span className="text-[10px] font-black mt-1.5 text-stone-900 leading-tight">Served</span>
+                      <span
+                        className={`text-[9px] font-bold ${
+                          activeStage === "served" ? "text-emerald-700" : "text-stone-400"
+                        }`}
+                      >
+                        {activeStage === "served" ? "At Table" : "Final"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic Station Narrative Note */}
+                <div
+                  className="p-3 rounded-xl border flex items-start gap-2.5 text-xs"
+                  style={{
+                    backgroundColor:
+                      isApprovalPending ? "#FFFBEB" : activeStage === "preparing" ? "#EFF6FF" : activeStage === "served" ? "#F0FDF4" : "#FAF8F5",
+                    borderColor:
+                      isApprovalPending ? "#FDE68A" : activeStage === "preparing" ? "#BFDBFE" : activeStage === "served" ? "#BBF7D0" : "var(--hairline)",
+                  }}
+                >
+                  <span className="text-xl shrink-0 mt-0.5">
+                    {isApprovalPending ? "👨‍💼" : activeStage === "preparing" ? "🍳" : activeStage === "served" ? "🎉" : "📍"}
+                  </span>
+                  <div>
+                    <div className="font-heading font-black text-xs text-stone-900 mb-0.5">
+                      {isApprovalPending
+                        ? `Captain Verification at Table ${tableNumber}`
+                        : activeStage === "preparing"
+                        ? `Chef is Cooking in the Kitchen`
+                        : activeStage === "served"
+                        ? `All Dishes Delivered to Table ${tableNumber}!`
+                        : `Order Dispatched from Table ${tableNumber}`}
+                    </div>
+                    <div className="text-[11px] text-stone-600 leading-relaxed">
+                      {isApprovalPending
+                        ? "Our floor captain is reviewing the order items with you before sending the fire ticket (KOT) to the kitchen stoves."
+                        : activeStage === "preparing"
+                        ? `The kitchen station has fired your ticket and is preparing dishes fresh.${remainingMinutesText ? ` Target cooking time: ${remainingMinutesText} remaining.` : ""}`
+                        : activeStage === "served"
+                        ? "Hope you enjoy your meal! Need extra dips, water, or the bill? Tap 'Call Waiter' anytime."
+                        : "Order has been registered from your phone. Traveling to the service captain."}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mystery Scratch Reward Card prompt when food is served */}
+                {activeStage === "served" && features.loyaltyOffers !== false && (
+                  <div
+                    onClick={() => {
+                      triggerHaptic(18);
+                      setIsScratchModalOpen(true);
+                    }}
+                    className="p-3 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 border border-amber-500 text-stone-900 shadow-md cursor-pointer active:scale-98 transition-transform flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl animate-bounce">🎁</span>
+                      <div className="text-left">
+                        <div className="text-xs font-black leading-tight">Scratch Mystery Voucher!</div>
+                        <div className="text-[10px] font-medium text-amber-950">
+                          {offerConfig.bounceBackReward || "Flat ₹100 OFF on your next visit"}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1.5 rounded-lg bg-stone-900 text-amber-300 shadow-xs flex items-center gap-1">
+                      <span>Scratch</span>
+                      <span>➔</span>
+                    </span>
+                  </div>
+                )}
+
+                {/* Dishes In Ticket (2-line layout, zero truncation!) */}
+                <div className="space-y-2 pt-2 border-t border-dashed" style={{ borderColor: "var(--hairline)" }}>
+                  <div className="text-[11px] font-mono font-bold text-stone-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Dishes in this order ({activeOrder.order_items.length}):</span>
+                    <span className="text-stone-900 font-black font-receipt">Total: ₹{orderTotal}</span>
+                  </div>
+
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {activeOrder.order_items.map((it) => (
+                      <div
+                        key={it.id}
+                        className="p-2.5 rounded-xl bg-stone-50/90 border border-stone-200/90 hover:border-stone-300 transition-all text-xs space-y-1.5"
+                      >
+                        {/* Line 1: Veg indicator + Full Dish Name (100% width, no truncation) + Item Price */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className={`${it.menu_items?.is_veg ? "veg-indicator" : "nonveg-indicator"} shrink-0 mt-0.5`} />
+                            <span className="font-bold text-stone-900 text-xs sm:text-sm leading-snug break-words">
+                              {it.menu_items?.name || "Dish"}
+                            </span>
+                          </div>
+                          <span className="font-mono font-black text-stone-900 text-xs sm:text-sm shrink-0 whitespace-nowrap">
+                            ₹{Number(it.unit_price) * Number(it.qty)}
+                          </span>
+                        </div>
+
+                        {/* Line 2: Quantity, Unit Price, Status Badge, and 1-Tap Repeat Button */}
+                        <div className="flex items-center justify-between pt-1 border-t border-stone-200/50 text-[11px]">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-stone-600 bg-stone-200/60 px-1.5 py-0.5 rounded text-[10px]">
+                              {it.qty}×
+                            </span>
+                            {it.item_status === "served" ? (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                                <span>✓</span> Ready
+                              </span>
+                            ) : it.item_status === "preparing" ? (
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-300 animate-pulse flex items-center gap-1 shrink-0">
+                                <span>🔥</span> Cooking
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300 flex items-center gap-1 shrink-0">
+                                <span>⏳</span> Queued
+                              </span>
+                            )}
+                            <span className="text-[10px] text-stone-400 font-mono">
+                              (₹{it.unit_price}/ea)
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleReorderItem(it)}
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-bold border bg-white hover:bg-stone-100 cursor-pointer shadow-2xs transition-transform active:scale-95 flex items-center gap-1"
+                            style={{ borderColor: "var(--hairline)", color: "var(--rust)" }}
+                          >
+                            <span>+</span> Repeat
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="p-3.5 border-t bg-stone-50 flex items-center gap-2.5" style={{ borderColor: "var(--hairline)" }}>
+                {features.callWaiter && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsJourneySheetOpen(false);
+                      setIsCallModalOpen(true);
+                    }}
+                    className="flex-1 py-2.5 px-3 rounded-xl border border-stone-300 bg-white hover:bg-stone-100 font-bold text-xs text-stone-800 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-transform"
+                  >
+                    <span>🛎️</span>
+                    <span>Call Waiter</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsJourneySheetOpen(false);
+                    const el = document.getElementById("menu-catalog-start");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-sm active:scale-98 transition-transform"
+                  style={{ backgroundColor: "var(--rust)", color: "var(--rust-text)" }}
+                >
+                  <span>🍲</span>
+                  <span>Add More Food</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Flying Particle Micro-Interaction Overlay */}
       {flyingParticles.map((p) => (

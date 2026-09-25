@@ -100,6 +100,7 @@ export type RestaurantFeatures = {
   mobileNavStyle?: "bottom_bar" | "sidebar"; // 📱 Mobile Navigation Style (Default: 'bottom_bar')
   mobileSheetModals?: boolean; // 📲 Native Bottom Sheet Drawers for mobile forms (Default: true)
   autoMobileCards?: boolean;  // 🖼️ Auto-switch from dense tables to touch cards on mobile (Default: true)
+  orderJourneyLayout?: "floating_capsule" | "split_card" | "slim_accordion"; // 🗺️ Customer live order journey UX layout
 };
 
 export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
@@ -120,6 +121,7 @@ export const DEFAULT_RESTAURANT_FEATURES: RestaurantFeatures = {
   mobileNavStyle: "bottom_bar",
   mobileSheetModals: true,
   autoMobileCards: true,
+  orderJourneyLayout: "floating_capsule",
 };
 
 import {

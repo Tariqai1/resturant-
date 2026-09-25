@@ -975,6 +975,57 @@ export default function Home() {
                   <span>👨‍💼</span>
                   <span className="hidden sm:inline">Captain Verification: {features?.waiterOrderApproval ? "ON" : "OFF"}</span>
                 </button>
+
+                {/* Live Order Journey UX Layout Switcher */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const current = features?.orderJourneyLayout || "floating_capsule";
+                    const next =
+                      current === "floating_capsule"
+                        ? "split_card"
+                        : current === "split_card"
+                        ? "slim_accordion"
+                        : "floating_capsule";
+                    try {
+                      const res = await fetch("/api/restaurant/features", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ orderJourneyLayout: next }),
+                      });
+                      if (res.ok) {
+                        setFeatures((prev) => (prev ? { ...prev, orderJourneyLayout: next } : null));
+                        notify(
+                          next === "floating_capsule"
+                            ? "Customer Journey: Floating Capsule + Bottom Sheet Active"
+                            : next === "split_card"
+                            ? "Customer Journey: Side-by-Side Split Card Active"
+                            : "Customer Journey: Ultra-Slim Accordion Active"
+                        );
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  className="px-3 py-2 rounded text-xs font-bold border cursor-pointer flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                  style={{
+                    backgroundColor: "#FAF5FF",
+                    color: "#6B21A8",
+                    borderColor: "#E9D5FF",
+                    borderRadius: "5px",
+                  }}
+                  title="Cycle Customer Table Live Order Journey Layout (Floating Capsule / Side Split / Slim Accordion)"
+                >
+                  <span>🗺️</span>
+                  <span className="hidden lg:inline">Journey:</span>
+                  <span className="font-bold">
+                    {(features?.orderJourneyLayout || "floating_capsule") === "floating_capsule"
+                      ? "Floating Sheet"
+                      : (features?.orderJourneyLayout || "floating_capsule") === "split_card"
+                      ? "Side Split"
+                      : "Slim Accordion"}
+                  </span>
+                </button>
               </>
             )}
 
